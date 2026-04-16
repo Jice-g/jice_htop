@@ -1,13 +1,13 @@
 
 *******
-JICE‑HTOP  
+# JICE‑HTOP  
 Mini‑réimplémentation pédagogique de htop en C / ncurses  
 *******
 
 
 
 PRESENTATION
-------------
+-----------
 
 JICE‑HTOP est une application console interactive écrite en C, utilisant la bibliothèque ncurses, qui reproduit quelques fonctionnalités essentielles de l’outil htop.  
 Le programme lit directement les informations système dans le pseudo‑système de fichiers /proc et affiche en temps réel :
@@ -30,7 +30,7 @@ dans le respect des exigences du "cahier des charges" avec un accent particulier
 
 
 FONCTIONALITES
----------------
+--------------
 
 Affichage des processus :  
 - Lecture de /proc/[PID]/comm pour le nom  
@@ -98,7 +98,7 @@ ______________________________
 
 
 COMPILATION
------------
+------------
 
 ncurses installé :
 sudo apt install libncurses5-dev libncursesw5-dev
@@ -109,14 +109,14 @@ Nettoyer les objets : make clean
 
 Recompiler entièrement : make re
 
-Exécution  
----------
+#Exécution  
+**********
 
 ./jice_htop
 
 
 COMMANDE ET SERVICES 
---------------------
+-------------------
 
 q : quitter  
 p : tri par PID  
@@ -171,16 +171,16 @@ Les fonctions de gestion d'affichage et de mise à jour des données ont déjà 
 L’objectif du multithreading serait alors de séparer deux responsabilités actuellement exécutées à la suite dans la même boucle : l’affichage ncurses et la collecte des données système. Cette séparation permettrait d’obtenir une interface plus fluide, même lorsque la lecture de /proc prend du temps.
 
 Par exemple :
-# Thread principal qui gère l’affichage, capture les entrées clavier, met à jour la scrollbar et le scroll, reste réactif même lorsque la collecte des données prend du temps
+ - Thread principal qui gère l’affichage, capture les entrées clavier, met à jour la scrollbar et le scroll, reste réactif même lorsque la collecte des données prend du temps
  
-# Thread secondaire (collecte des données système) qui rafraîchit périodiquement la liste des processus, relit /proc/[PID]/*, relit /proc/meminfo, met à jour une structure partagée contenant les données système
+ - Thread secondaire (collecte des données système) qui rafraîchit périodiquement la liste des processus, relit /proc/[PID]/*, relit /proc/meminfo, met à jour une structure partagée contenant les données système
 
-# Synchronisation
+ - Synchronisation
 Pour éviter les corruptions de données entre les deux threads (qui accèdent à la même struct !), il faudrait implémenter un mutex:
 - Le thread secondaire, verrouille, met à jour les données puis il déverrouille.
 - Le thread principal : verrouille, lit les données, déverrouille.
 
-# Fréquence de rafraîchissement : 200 ms, identique au timeout ncurses actuel
+ - Fréquence de rafraîchissement : 200 ms, identique au timeout ncurses actuel
 
 *******************************************
 FIN
