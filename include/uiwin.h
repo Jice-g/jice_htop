@@ -12,7 +12,7 @@
 
 void init_ncurses(void);
 
-void ram_display(const unsigned long total, const unsigned long avail, const unsigned long used, const float percent) ;
+void ram_display(const unsigned long total, const unsigned long avail, const unsigned long used, const float percent, const unsigned long self_use)  ;
 
 void draw_header(void);
 

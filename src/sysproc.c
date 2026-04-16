@@ -189,7 +189,7 @@ void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb) {
 
 // Mise à jour des données RAM : 
 ///
-void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent)
+void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent, unsigned long *selfused)
 {
     if (!lire_ram(total, avail)) {  // Si on a zero c'est qu'on a un probleme avec l'accès à /proc/meminfo
         *total = *avail = 0;
@@ -198,6 +198,14 @@ void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *
     }
     *used = *total - *avail;
     *percent = (*total > 0) ? (float)(*used * 100) / *total : 0;
+    
+    struct rusage selfusage; // rusage struct de <sys/resource.h> pour lire la consommation du programme
+    if (getrusage(RUSAGE_SELF, &selfusage) == 0) {
+        // ru_maxrss est en kilo-octets
+        *selfused = selfusage.ru_maxrss;
+        }
+    else *selfused = 0;
+        
 }
 
 

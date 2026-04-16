@@ -3,6 +3,7 @@
 #define SYSPROC_H
 
 #include <dirent.h>
+#include <sys/resource.h>
 
 
 // Définition de la longueur maximale d'une ligne dans notre liste
@@ -44,7 +45,7 @@ void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb);
 
 // Fonctions RAM
 int lire_ram(unsigned long *total, unsigned long *available);
-void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent);
+void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent, unsigned long *selfused);
 
 #endif
 

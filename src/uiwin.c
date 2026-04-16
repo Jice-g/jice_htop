@@ -30,10 +30,11 @@ void init_ncurses(void) {
 
 // AFFICHAGE RAM
 //
-void ram_display(const unsigned long total, const unsigned long avail, const unsigned long used, const float percent) {    
+void ram_display(const unsigned long total, const unsigned long avail, const unsigned long used, const float percent, const unsigned long self_use) {    
+        
         attron(COLOR_PAIR(3));  ; // Couleur verte sur fond noir            
         mvprintw(L_DATA_GLOBAL + 0, 0, "%-16s %6lu MB", "Mem totale: ", total / 1024);
-        mvprintw(L_DATA_GLOBAL + 1, 0, "%-16s %6lu MB  %.1f%%", "Mem utilisee : ", used / 1024, percent);    
+        mvprintw(L_DATA_GLOBAL + 1, 0, "%-16s %6lu MB  %.1f%%      |    JICE_HTOP ressouces : %lu kB", "Mem utilisee : ", used / 1024, percent, self_use);    
         mvprintw(L_DATA_GLOBAL + 2, 0, "%-16s %6lu MB", "Mem libre : ", avail / 1024);
         attroff(COLOR_PAIR(3));  ; 
 }

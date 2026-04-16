@@ -131,6 +131,7 @@ int main(void) {
     unsigned long total_ram = 0;	// MemTotal
     unsigned long avail_ram = 0;  	// MemAvailable  
     unsigned long ram_used = 0; 
+    unsigned long self_ram_used = 0;    // self consommation de jice_htop 
     float ram_percent;			// calculé
   
  // IHM, Filtre et scroll  
@@ -221,9 +222,9 @@ int main(void) {
  	// - MemTotal
  	// - MemAvailable     	
         // Mise à jour des données 
-	update_ram_info(&total_ram, &avail_ram, &ram_used, &ram_percent); 	// sysproc.c .h	
+	update_ram_info(&total_ram, &avail_ram, &ram_used, &ram_percent, &self_ram_used); 	// sysproc.c .h	
 	// Affichage des données
-	ram_display(total_ram, avail_ram, ram_used, ram_percent);	// uiwin.c .h
+	ram_display(total_ram, avail_ram, ram_used, ram_percent, self_ram_used);	// uiwin.c .h
    
 
         draw_header();     // Affichage de l'entête 	uiwin.c .h
