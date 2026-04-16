@@ -29,7 +29,6 @@ Le projet a été réalisé dans le cadre du test d’entrée B3 – La Platefor
 dans le respect des exigences du "cahier des charges" avec un accent particulier sur la qualité du code, la modularité et la robustesse.
 
 
-
 FONCTIONALITES
 --------------
 
@@ -94,9 +93,7 @@ Nettoyer les objets : make clean
 
 Recompiler entièrement : make re
 
-#Exécution  
-**********
-
+Exécution  
 ./jice_htop
 
 
@@ -155,15 +152,13 @@ L’objectif du multithreading serait alors de séparer deux responsabilités ac
 
 Par exemple :
  - Thread principal qui gère l’affichage, capture les entrées clavier, met à jour la scrollbar et le scroll, reste réactif même lorsque la collecte des données prend du temps
- 
- - Thread secondaire (collecte des données système) qui rafraîchit périodiquement la liste des processus, relit /proc/[PID]/*, relit /proc/meminfo, met à jour une structure partagée contenant les données système
+  - Thread secondaire (collecte des données système) qui rafraîchit périodiquement la liste des processus, relit /proc/[PID]/*, relit /proc/meminfo, met à jour une structure partagée contenant les données système
 
- - Synchronisation
-Pour éviter les corruptions de données entre les deux threads (qui accèdent à la même struct !), il faudrait implémenter un mutex:
+Synchronisation : Pour éviter les corruptions de données entre les deux threads (qui accèdent à la même struct !), il faudrait implémenter un mutex:
 - Le thread secondaire, verrouille, met à jour les données puis il déverrouille.
 - Le thread principal : verrouille, lit les données, déverrouille.
 
- - Fréquence de rafraîchissement : 200 ms, identique au timeout ncurses actuel
+Fréquence de rafraîchissement : 200 ms, identique au timeout ncurses actuel
 
 *******************************************
 FIN
