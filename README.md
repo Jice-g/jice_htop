@@ -40,13 +40,6 @@ Affichage des processus :
   - n, N --> tri par NOM  
   - m, M --> tri par MEM  
   
-N.B : Le tri par NOM commence par une dizaine d'enregistrements au dessus du tri alphabétique général
-Il y a les noms spéciaux commençant par '('. Ok. 
-Mais pour le reste, la cause est inconnue.
-qsort(liste_proc, nb, sizeof(t_process), compare_by_name); semble tout à fait correct.
-Hyppothèse : Noms tronqués par /proc/[PID]/comm , ou bien c’est la source des noms qui est "exotique" (générés automatiquement par systemd, kernel, sandbox, etc. (??))
-
-
 Informations système :  
 - Lecture de /proc/meminfo  
 - Affichage de la mémoire totale, utilisée, disponible et du pourcentage d’utilisation  
