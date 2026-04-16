@@ -1,9 +1,8 @@
 
 *******
 # JICE‑HTOP  
-Mini‑conception et programmation pédagogique de htop en C / ncurses 
-Projet réalisé par @Jicé,  
-dans le cadre du test d’entrée B3 – La Plateforme - 2026.
+Mini‑conception et programmation pédagogique de htop en C / ncurses.  
+Projet réalisé par @Jicé dans le cadre du test d’entrée B3 – La Plateforme - 2026.
 *******
 
 
