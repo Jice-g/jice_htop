@@ -142,10 +142,11 @@ AUTEUR
 Projet réalisé par Jean-Christophe Gerace @Jicé,  
 
 
-***********************************
 RESERVES :
 -----------------------------------
-La partie multithread n'a pas encore été implémentée. Elle pourra l'être sur demande.
+La partie multithread n'a pas encore été implémentée.
+-------
+Elle pourra l'être sur demande.
 Les fonctions de gestion d'affichage et de mise à jour des données ont déjà été séparées avec -sysproc -uiwin
 
 L’objectif du multithreading serait alors de séparer deux responsabilités actuellement exécutées à la suite dans la même boucle : l’affichage ncurses et la collecte des données système. Cette séparation permettrait d’obtenir une interface plus fluide, même lorsque la lecture de /proc prend du temps.
