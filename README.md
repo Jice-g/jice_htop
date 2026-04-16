@@ -16,7 +16,7 @@ Le programme lit directement les informations système dans le pseudo‑système
 - la liste des processus actifs  
 - leur PID  
 - leur nom  
-- leur mémoire résidente (VmRSS)  
+- leur mémoire virtuelle résidente (VmRSS) et celle de jice_htop
 - l’utilisation globale de la RAM  
 - un tri dynamique (PID / NOM / MEM)  
 - un filtrage interactif  - message si aucune correspondance
@@ -113,8 +113,11 @@ Le programme parcourt /proc, détecte les entrées numériques (PID), puis lit :
 
 Lecture de la RAM :  
 Lecture de MemTotal et MemAvailable dans /proc/meminfo.  
-Calcul : 	RAM utilisée = MemTotal – MemAvailable.
-		RAM % = (RAM utilisée * 100) / MemTotal;
+Calcul :  RAM utilisée = MemTotal – MemAvailable.
+		  RAM % = (RAM utilisée * 100) / MemTotal;
+La consommation du programme JICE_HTOP est issue de :
+(getrusage(RUSAGE_SELF, &selfusage)  <sys/resource.h>
+
 
 Scrollbar proportionnelle :  
 La position du curseur est calculée ainsi :  
