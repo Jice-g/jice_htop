@@ -81,22 +81,6 @@ obj/
 Makefile  
 - compilation modulaire, dépendances automatiques, règles clean/fclean/re  
 
-_____________________________
-
-jice_htop/
-│
-├── src/
-│   ├── main.c
-│   ├── sysproc.c  
-│   ├── uiwin.c
-│
-├── include/
-│   ├── sysproc.h  
-│   ├── uiwin.h
-│
-└── Makefile
-______________________________
-
 
 COMPILATION
 ------------
