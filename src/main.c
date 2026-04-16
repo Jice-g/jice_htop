@@ -1,0 +1,337 @@
+
+/********************************************
+    Fichier /src/main.c
+*********************************************/
+
+
+#include <stdio.h>
+#include <dirent.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ncurses.h>
+#include "sysproc.h"
+#include "uiwin.h"
+
+
+
+/***************************************************************************************
+****************************************************************************************
+
+	MAIN de jice_htop
+
+****************************************************************************************
+****************************************************************************************
+
+** Description des outils utilisés :
+---------------------------------
+   Sous Linux, presque tout est en fichier.
+   Les informations sur les processus ne sont pas stockées dans une base de données cachée,
+   mais dans un système de fichiers virtuel appelé /proc.
+   Chaque repertoire les contenant est un nombre : le PID (Process ID)
+   
+   # Dans <dirent.h> :
+   
+	struct dirent {
+    	ino_t          d_ino;       // Numéro d'inode (identifiant unique sur le disque)
+    	off_t          d_off;       // Offset vers la prochaine entrée (dépend de l'implémentation)
+    	unsigned short d_reclen;    // Longueur de cet enregistrement 
+    	unsigned char  d_type;      // Type du fichier (ex: dossier, lien, fichier régulier)
+   	char           d_name[256]; // Nom du fichier (terminé par \0) 
+	};
+	
+	* d_type : Ce champ est très pratique, il permet de savoir immédiatement si l'élément est
+	  un dossier (DT_DIR) ou un fichier classique (DT_REG) sans avoir à appeler d'autres fonctions complexes.
+	  
+	* d_ino : C'est le numéro d'index physique sur le disque dur. Deux fichiers différents ne peuvent pas
+	  avoir le même d_ino sur une même partition.
+
+
+   # Dans <ncurses.h> :
+  
+      Les Fonctions de Base (Le Cycle de Vie)
+      
+      Toute application Ncurses doit suivre ce schéma pour éviter de boguer le terminal de l'utilisateur :
+      
+       * initscr() : Initialise la structure de données Ncurses et détermine la taille du terminal.
+         Elle crée la fenêtre par défaut stdscr.
+         
+       * noecho() : Empêche l'affichage automatique des caractères frappés par l'utilisateur au clavier.
+         Indispensable pour garder une interface propre.
+         
+       * curs_set( ) : Masque le curseur (0 = invisible, 1 = normal, 2 = très visible). Ou FALSE(0), TRUE(1).
+         Très utile pour une liste de processus.
+         
+       * keypad(stdscr, TRUE) :  Permet de capturer les keypresseds spéciales
+         
+       * endwin() : Crucial. Restaure les paramètres par défaut du terminal avant de quitter le programme.
+         Sans cela, le terminal restera "bloqué" dans un mode étrange.
+
+       La grille :
+       Ncurses travaille avec des coordonnées (y, x). 
+       Attention : l'axe Y (lignes) vient toujours avant l'axe X (colonnes).
+       
+       * mvprintw(y, x, "format", ...) : La fonction déplace le curseur à la position (y, x) et écrit le texte.
+         Exemple : mvprintw(0, 0, "PID: %d", pid); tout en haut à gauche.
+         
+       * attron(A_BOLD) / attroff(A_BOLD) : Active ou désactive des attributs visuels (Gras, Souligné, Couleurs).
+         Utile pour mettre l'en-tête "PID | NOM" en évidence.
+         
+       * clear() : Efface tout l'écran. À utiliser au début de chaque affichage.
+       
+       * refresh() : Rafraissement de l'affichage (à cadencer);     
+       
+================================================================================================================= 
+
+** DESCRIPTION :
+---------------
+  On fonctionnera avec un t_process (type déclaré en header)
+  Dans le répertoire /proc avec un pointeur DIR
+  On controle la capacité du t_process pour realloc dynamique si nécessaire
+
+  Initialisation de Ncurses basique :
+  Avec un rafraichissement en timeout qui se fera toutes les REFRESH_TIME ms voir rubrique des #define
+
+  Tri : Le cahier des charges demande de pouvoir trier les processus par PID / par utilisation mémoire / par nom
+  Le main prévoit de switcher selon le choix de l'utilisateur final : getch()
+S switch selon un typedef enum de  valeurs fixes (sort_mode (SORT_PIB par défaut)
+
+  La boucle do-while qui peut être ensuite paraléllisée en multitache prévoit gère l'affichage des données en temps réel.
+
+  Fermeture propre du programme
+
+=========================================================================================================================*/
+
+
+	    
+	    
+
+int main(void) {
+
+/* Table des variables
+**********************************************************************************************************/
+
+
+ // pointeur sur fichier : acces aux fichiers du répertoire /proc
+    DIR  *d;   
+ // comptage :   
+    int nb_proc;	// nombre de processus lu dans /proc
+
+ // structure d'enregistrement des process (sysproc.h)
+    t_process *liste_proc = NULL;	
+    int icapa_t_process = 0; 		// controle de la capacité du t_process par realloc      
+ 
+    
+    int key;  			// touche tapée par l'utilisateur
+    char filter[256]; 		// il servira à saisir un filtre par l'utilisateur
+    filter[0] = '\0';    
+    t_sort_mode sort_mode = SORT_PID; // sysproc.h  
+    
+ // données de la RAM  
+    unsigned long total_ram = 0;	// MemTotal
+    unsigned long avail_ram = 0;  	// MemAvailable  
+    unsigned long ram_used = 0; 
+    float ram_percent;			// calculé
+  
+ // IHM, Filtre et scroll  
+    int lignes_ecrites = 0; 	// le nombre de lignes effectivement écrites dans le panneau en mode normal
+    int nb_affiches = 0;	// ligne affichées quand on filtre
+    int lignes_dispo = 0;   	// le nombre de lignes totales disponibles dans le panneau entre les bandeau du haut et du bas
+    int bar_pos = 0;		// position du curseur scroll-bar
+    int scroll_offset = 0; 	// décalage de la lecture des enregistrements t_process par le scroll Page_Up ou Page_Down
+    int max_scroll = 0;  	// combien on peut scroller au maximum : quand on est au bout de la liste et de lignes_dispo
+    int bar_height = 0;		// hauteur scroll_bar
+
+
+
+/* Initialisation de Ncurses
+******************************************************************************************************/
+	init_ncurses(); // uiwi.c .h 
+
+
+
+/* La boucle do-while
+********************************************************************************************************
+	qui peut être ensuite paraléllisée en multitache prévoit :
+	- Lecture des données /proc avec une gestion dynamique du buffer 
+	- Application du tri selon commande utilisateur)
+	- Gestion Scroll-bar
+	- L'affichage test bandeaux et des enregistrements : en gérant l'espacement des colonnes	
+	- La gestion du filtre sur le nom avec le scroll
+	- Rafraichissement et saisie commande clavier qui sélectionnera le sort_mode ou filtre ou quittera	
+*/
+
+    do {
+    
+	lignes_ecrites = 0;
+	lignes_dispo = 0;
+	bar_pos = 0;
+	bar_height = 0;
+	max_scroll = 0;
+	
+	
+   /*** Lecture et mise à jour dans le répertoire /proc ******************************************/
+
+	d = opendir("/proc"); 
+
+	if (!d) {
+		endwin();
+		free(liste_proc);
+		perror("opendir");
+	return 1;
+	}
+                
+        nb_proc = compter_processus(d);  // sysproc.c .h
+        
+        // Gestion dynamique du buffer
+        if (nb_proc > icapa_t_process) {
+            icapa_t_process = nb_proc + 20; // On prévoit une marge de 20 par sécurité
+	    t_process *tmp = realloc(liste_proc, icapa_t_process * sizeof(t_process));
+		if (!tmp) {
+    	    		endwin();
+    			free(liste_proc);
+    			perror("realloc");
+    			exit(EXIT_FAILURE); 	// sortie de main depuis le lieu de l'erreur fatale
+		} 	
+	liste_proc = tmp;
+         }
+
+        remplir_liste_processus(d, liste_proc, nb_proc);	// sysproc.c .h
+        
+   /**/ closedir(d);              
+                
+
+        // Application du tri selon sort_mode (SORT_PIB par défaut)        
+        switch_sort(sort_mode, liste_proc, nb_proc);      	// syspro.c .h      
+    
+    	
+	
+
+    /*** DEBUT AFFICHAGE	****************************************************************/    
+         
+	// nettoyage de tout l'affichage (ncurses)
+	clear();
+        
+        attron(COLOR_PAIR(1) | A_BOLD); // Couleur noir sur fond bleu 
+        mvprintw(0, 0, "JICE-HTOP | Processus : %d                      ", nb_proc);
+        attroff(COLOR_PAIR(1) | A_BOLD);         
+        
+ 	//  RAM globale  :  Lecture de "/proc/meminfo" :
+ 	//  et puis, lecture des champs :
+ 	// - MemTotal
+ 	// - MemAvailable     	
+        // Mise à jour des données 
+	update_ram_info(&total_ram, &avail_ram, &ram_used, &ram_percent); 	// sysproc.c .h	
+	// Affichage des données
+	ram_display(total_ram, avail_ram, ram_used, ram_percent);	// uiwin.c .h
+   
+
+        draw_header();     // Affichage de l'entête 	uiwin.c .h
+
+        
+        
+	// Affichage des lignes processus en gérant l'éventuel filtrage par l'utilisateur :
+	// ---------------------------------------------------------------------------------
+	attron(COLOR_PAIR(3));  ; // Couleur verte sur fond noir 	
+	
+	nb_affiches = 0;
+	for (int k = 0; k < nb_proc; k++) {
+	    if (filter[0] == '\0' || cmp_filtre(liste_proc[k].name, filter))
+		nb_affiches++;
+	}	
+	
+	if (nb_affiches == 0) {
+	    // Effacer la zone d’affichage des processus
+	    for (int y = 0; y < LINES - (L_LIST_PROCESS + 2); y++) {
+		mvprintw(L_LIST_PROCESS + y, 1,
+		"                                        ");
+	    }
+	    // indiquer qu'on a pas trouvé de correspondance
+	    attron(COLOR_PAIR(3) | A_BOLD);
+	    mvprintw(L_LIST_PROCESS, 1, "Aucun processus ne correspond au filtre.");
+	    attroff(COLOR_PAIR(3) | A_BOLD);
+
+	    // Pas de scroll, pas de liste, pas de scroll-bar
+	    refresh();
+	    key = getch();
+	    if (key == 'q' || key == 'Q')
+    		break;
+	    on_keypressed(key, &sort_mode, &scroll_offset, filter);
+	    continue;   // Retour au début de la boucle
+	}
+
+	
+ 
+        // Affichage et filtre avec scroll :	
+        // -------------------------------------
+        lignes_dispo = LINES - (L_LIST_PROCESS + 2);
+	calcul_scroll(nb_affiches, lignes_dispo, &scroll_offset, &max_scroll, &bar_height, &bar_pos);	// uiwin.c .h	
+	
+	draw_scrollbar(bar_height, bar_pos, L_LIST_PROCESS);
+
+	int i = 0;
+	int j = 0;
+
+	while ((i + scroll_offset < nb_proc) && (lignes_ecrites < lignes_dispo)) {
+
+	    j = i + scroll_offset;
+
+	    // filtrage
+	    
+	    if ( filter[0] != '\0' && !cmp_filtre(liste_proc[j].name, filter) ) {  // cmp_filtre uiwin.c .h
+	     // un filtre et pas de correspondance
+		i++;            // avancer dans la liste
+		continue;       // mais ne pas afficher
+	    	}
+
+	    mvprintw(lignes_ecrites + L_LIST_PROCESS, 1, "%-5d %9ld    %s",
+		     liste_proc[j].pid,
+		     liste_proc[j].mem_kb,
+		     liste_proc[j].name);
+	    lignes_ecrites++;
+	    i++;
+	}
+	
+        attroff(COLOR_PAIR(3));
+        
+	
+	// un bandeau en bas de la fenêtre
+        attron(COLOR_PAIR(4)); // Couleur bleu sur fond noir 	        
+        mvprintw(LINES - 2, 0, "'q' quitter | 'p' tri PID | 'n' tri NOM | 'm' tri MEM | '/'+""filtre""+Entrer pour filtrer, puis '/'+Entrer pour défiltrer.");
+        attroff(COLOR_PAIR(4));
+        
+        attron(COLOR_PAIR(5) | A_BOLD); // Couleur noir sur fond jaune
+        char bandeau[COLS];
+	bandeau_bas(bandeau, COLS, sort_mode, filter);
+	mvprintw(LINES - 1, 0, "%s", bandeau);	
+        attroff(COLOR_PAIR(5) | A_BOLD);    
+        
+        
+       // Rafraichissement et attente de frappe au clavier :
+        refresh();  // timeout(REFRESH_TIME)
+        key = getch();  
+        
+        
+   /*** Selection de l'utilisateur "On Key Pressed" *************************************************/
+        
+	if (key == 'q' || key == 'Q')
+    		break;
+    		
+ 	// Action après sur touche pressée :
+	on_keypressed(key, &sort_mode, &scroll_offset, filter);	// uiwin.c .h
+	
+   /**/// Fin de la boucle principale do .. while                                                         
+    } while (1);
+    
+        
+   
+  /*** TERMINER : *********************************************************************************/
+    free(liste_proc); // Une seule libération à la sortie (le realloc() fait le reste)
+    endwin();  // ferme la fenêtre
+    
+    return 0;
+    
+} /** FIN DU PROGRAMME **/
+
+
+
