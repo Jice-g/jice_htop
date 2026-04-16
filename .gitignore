@@ -1,0 +1,9 @@
+# Binaries
+jice_htop
+
+# Object files
+obj/
+
+# Temporary files
+*.txt
+*.log
