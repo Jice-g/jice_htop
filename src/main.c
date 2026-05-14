@@ -37,7 +37,7 @@
     	off_t          d_off;       // Offset vers la prochaine entrée (dépend de l'implémentation)
     	unsigned short d_reclen;    // Longueur de cet enregistrement 
     	unsigned char  d_type;      // Type du fichier (ex: dossier, lien, fichier régulier)
-   	char           d_name[256]; // Nom du fichier (terminé par \0) 
+   	    char           d_name[256]; // Nom du fichier (terminé par \0) 
 	};
 	
 	* d_type : Ce champ est très pratique, il permet de savoir immédiatement si l'élément est
@@ -93,8 +93,8 @@
   Avec un rafraichissement en timeout qui se fera toutes les REFRESH_TIME ms voir rubrique des #define
 
   Tri : Le cahier des charges demande de pouvoir trier les processus par PID / par utilisation mémoire / par nom
-  Le main prévoit de switcher selon le choix de l'utilisateur final : getch()
-S switch selon un typedef enum de  valeurs fixes (sort_mode (SORT_PIB par défaut)
+  Le programme prévoit de switcher selon le choix de l'utilisateur final : getch()
+  Switch selon un typedef enum de  valeurs fixes (sort_mode (SORT_PIB par défaut)
 
   La boucle do-while qui peut être ensuite paraléllisée en multitache prévoit gère l'affichage des données en temps réel.
 
@@ -136,7 +136,7 @@ int main(void) {
   
  // IHM, Filtre et scroll  
     int lignes_ecrites = 0; 	// le nombre de lignes effectivement écrites dans le panneau en mode normal
-    int nb_affiches = 0;	// ligne affichées quand on filtre
+    int nb_affiches = 0;	    // ligne affichées quand on filtre
     int lignes_dispo = 0;   	// le nombre de lignes totales disponibles dans le panneau entre les bandeau du haut et du bas
     int bar_pos = 0;		// position du curseur scroll-bar
     int scroll_offset = 0; 	// décalage de la lecture des enregistrements t_process par le scroll Page_Up ou Page_Down
@@ -160,6 +160,7 @@ int main(void) {
 	- L'affichage test bandeaux et des enregistrements : en gérant l'espacement des colonnes	
 	- La gestion du filtre sur le nom avec le scroll
 	- Rafraichissement et saisie commande clavier qui sélectionnera le sort_mode ou filtre ou quittera	
+	Les fonctions associées sont intégrées dans sysproc.c .h et uiwin.c .h
 */
 
     do {
@@ -189,7 +190,7 @@ int main(void) {
             icapa_t_process = nb_proc + 20; // On prévoit une marge de 20 par sécurité
 	    t_process *tmp = realloc(liste_proc, icapa_t_process * sizeof(t_process));
 		if (!tmp) {
-    	    		endwin();
+    	    	endwin();
     			free(liste_proc);
     			perror("realloc");
     			exit(EXIT_FAILURE); 	// sortie de main depuis le lieu de l'erreur fatale
