@@ -45,15 +45,14 @@ int compare_by_pid(const void *a, const void *b) {
 	
     int pa = ((t_process *)a)->pid;  // check risque de débordement dans les comparateurs
     int pb = ((t_process *)b)->pid;  // ---
-    return (pa > pb) - (pa < pb);
+    return (pa > pb) - (pa < pb);    // décroissant
 }
 
 // Tri décroissant sur la mémoire mem_kb :
 int compare_by_mem(const void *a, const void *b) {
 
     long ma = ((t_process *)a)->mem_kb;  // check risque de débordement dans les comparateurs
-    long mb = ((t_process *)b)->mem_kb;  // ...
-    
+    long mb = ((t_process *)b)->mem_kb;  // ...    
     return (mb > ma) - (mb < ma); // décroissant
 
 }
@@ -62,7 +61,7 @@ int compare_by_mem(const void *a, const void *b) {
 int compare_by_name(const void *a, const void *b) {
     const t_process *pa = a;
     const t_process *pb = b;
-    return strcmp(pa->name, pb->name);
+    return strcmp(pa->name, pb->name);    // décroissant
 }
 
 
