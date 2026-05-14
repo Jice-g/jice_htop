@@ -93,7 +93,7 @@ int cmp_filtre(const char* strg, const char* sub)
 {
     if (!strg || !sub || !sub[0])
         return 1; // filtre vide = tout passe
-        // à présent on au moins un caractère dans la chaine
+        // à présent sait qu'on a au moins un caractère dans la chaine
 
 	    for (int i = 0; strg[i]; i++)
 	    { 
@@ -103,7 +103,7 @@ int cmp_filtre(const char* strg, const char* sub)
 		   j++;   }
 		   		
 		if (sub[j] == '\0')
-		    return 1; // on au moins a une correspondance
+		    return 1; // on a au moins une correspondance
 	        }
 	    
 	    return 0;
