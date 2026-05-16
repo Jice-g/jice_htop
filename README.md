@@ -1,14 +1,15 @@
 
-*******
-# JICE‑HTOP  
-Mini‑conception et programmation pédagogique de htop en C / ncurses.  
-Projet réalisé par @Jicé dans le cadre du test d’entrée B3 – La Plateforme - 2026.
-*******
+========================================================
+JICE‑HTOP  V2.0
+Mini‑réimplémentation pédagogique de htop en C / ncurses  
+=========================================================
 
-
+La V2.0 intègre des modifications :
+ - Majeures : intégration du multithreading
+ - Mineures : diverses (factorisation, lisibilité, robustesse (vérifications),...)
 
 PRESENTATION
------------
+------------
 
 JICE‑HTOP est une application console interactive écrite en C, utilisant la bibliothèque ncurses, qui reproduit quelques fonctionnalités essentielles de l’outil htop.  
 Le programme lit directement les informations système dans le pseudo‑système de fichiers /proc et affiche en temps réel :
@@ -16,30 +17,38 @@ Le programme lit directement les informations système dans le pseudo‑système
 - la liste des processus actifs  
 - leur PID  
 - leur nom  
-- leur mémoire virtuelle résidente (VmRSS) et celle de jice_htop
+- leur mémoire résidente (VmRSS)  
 - l’utilisation globale de la RAM  
 - un tri dynamique (PID / NOM / MEM)  
 - un filtrage interactif  - message si aucune correspondance
 - un scroll vertical fluide  
 - une barre de défilement proportionnelle (scrollbar)
 
-~ le multitache n'a pas été intégré.
+++ le multitache a été intégré.
 
 Le projet a été réalisé dans le cadre du test d’entrée B3 – La Plateforme,
 dans le respect des exigences du "cahier des charges" avec un accent particulier sur la qualité du code, la modularité et la robustesse.
 
 
+
 FONCTIONALITES
---------------
+---------------
 
 Affichage des processus :  
 - Lecture de /proc/[PID]/comm pour le nom  
 - Lecture de /proc/[PID]/status pour la mémoire (VmRSS)  
 - Tri dynamique :  
-  - p, P --> tri par PID  
-  - n, N --> tri par NOM  
-  - m, M --> tri par MEM  
+  --> tri par PID  
+  --> tri par NOM  
+  --> tri par MEM  
   
+N.B : Le tri par NOM commence par une dizaine d'enregistrements au dessus du tri alphabétique général
+Il y a les noms spéciaux commençant par '('. Ok. 
+Mais pour le reste, la cause est inconnue.
+qsort(liste_proc, nb, sizeof(t_process), compare_by_name); semble tout à fait correct.
+Hyppothèse : Noms tronqués par /proc/[PID]/comm , ou bien c’est la source des noms qui est "exotique" (générés automatiquement par systemd, kernel, sandbox, etc. (??))
+
+
 Informations système :  
 - Lecture de /proc/meminfo  
 - Affichage de la mémoire totale, utilisée, disponible et du pourcentage d’utilisation  
@@ -73,9 +82,25 @@ obj/
 Makefile  
 - compilation modulaire, dépendances automatiques, règles clean/fclean/re  
 
+_____________________________
+
+jice_htop/
+│
+├── src/
+│   ├── main.c
+│   ├── sysproc.c  
+│   ├── uiwin.c
+│
+├── include/
+│   ├── sysproc.h  
+│   ├── uiwin.h
+│
+└── Makefile
+______________________________
+
 
 COMPILATION
-------------
+-----------
 
 ncurses installé :
 sudo apt install libncurses5-dev libncursesw5-dev
@@ -87,16 +112,18 @@ Nettoyer les objets : make clean
 Recompiler entièrement : make re
 
 Exécution  
+---------
+
 ./jice_htop
 
 
 COMMANDE ET SERVICES 
--------------------
+--------------------
 
-q : quitter  
-p : tri par PID  
-n : tri par NOM  
-m : tri par MEM  
+q, Q : quitter  
+p, P : tri par PID  
+n, N : tri par NOM  
+m, M : tri par MEM  
  KEY_UP et KEY_DOWN  : scroll vertical  
 / : filtrer par nom (Entrée pour valider)
    - Pour filtrer taper '/' puis le texte du filtre, puis Entrer
@@ -113,11 +140,8 @@ Le programme parcourt /proc, détecte les entrées numériques (PID), puis lit :
 
 Lecture de la RAM :  
 Lecture de MemTotal et MemAvailable dans /proc/meminfo.  
-Calcul :  RAM utilisée = MemTotal – MemAvailable.
-		  RAM % = (RAM utilisée * 100) / MemTotal;
-La consommation du programme JICE_HTOP est issue de :
-(getrusage(RUSAGE_SELF, &selfusage)  <sys/resource.h>
-
+Calcul : 	RAM utilisée = MemTotal – MemAvailable.
+		RAM % = (RAM utilisée * 100) / MemTotal;
 
 Scrollbar proportionnelle :  
 La position du curseur est calculée ainsi :  
@@ -136,26 +160,161 @@ DEPENDANCES
 AUTEUR
 ------
 Projet réalisé par Jean-Christophe Gerace @Jicé,  
+dans le cadre du test d’entrée B3 – La Plateforme - 2026.
 
 
-RESERVES :
+
+***********************************
+ARCHITECTURE MULTITHREAD :
 -----------------------------------
-La partie multithread n'a pas encore été implémentée.
--------
-Elle pourra l'être sur demande.
-Les fonctions de gestion d'affichage et de mise à jour des données ont déjà été séparées avec -sysproc -uiwin
 
-L’objectif du multithreading serait alors de séparer deux responsabilités actuellement exécutées à la suite dans la même boucle : l’affichage ncurses et la collecte des données système. Cette séparation permettrait d’obtenir une interface plus fluide, même lorsque la lecture de /proc prend du temps.
 
-Par exemple :
- - Thread principal qui gère l’affichage, capture les entrées clavier, met à jour la scrollbar et le scroll, reste réactif même lorsque la collecte des données prend du temps
-  - Thread secondaire (collecte des données système) qui rafraîchit périodiquement la liste des processus, relit /proc/[PID]/*, relit /proc/meminfo, met à jour une structure partagée contenant les données système
+Séparer :
+ - l’interface utilisateur ;
+ - la collecte des données système.
+ 
+Architecture de JICE_HTOP V1.2.1
+-------------------------------------
+La V1.2.1 fonctionne avec :
 
-Synchronisation : Pour éviter les corruptions de données entre les deux threads (qui accèdent à la même struct !), il faudrait implémenter un mutex:
-- Le thread secondaire, verrouille, met à jour les données puis il déverrouille.
-- Le thread principal : verrouille, lit les données, déverrouille.
+ - une seule boucle principale ;
+ - un seul thread ;
+ - un cycle :
+ - lecture /proc
+ - tri
+ - affichage ncurses
+ - attente clavier
+ - recommencer
 
-Fréquence de rafraîchissement : 200 ms, identique au timeout ncurses actuel
+┌──────────────────────────────┐
+│ Boucle principale unique     │
+├──────────────────────────────┤
+│ Lire /proc                   │
+│ Lire meminfo                 │
+│ Trier les processus          │
+│ Afficher ncurses             │
+│ Lire clavier                 │
+└──────────────────────────────┘
+
+
+
+Architecture JICE_HTOP V2:
+--------------------------------
+
+┌──────────────────────────────┐
+│ Thread UI (principal)        │
+├──────────────────────────────┤
+│ ncurses                      │
+│ clavier                      │
+│ scroll                       │
+│ affichage                    │
+└──────────────┬───────────────┘
+               │
+               │ mutex
+               ▼
+┌──────────────────────────────┐
+│ Données partagées            │
+├──────────────────────────────┤
+│ liste processus              │
+│ RAM                          │
+│ nb processus                 │
+│ état global                  │ 
+│ synchronisation              │
+└──────────────┬───────────────┘
+               │
+               │ mutex
+               ▼
+┌──────────────────────────────┐
+│ Thread Collecte              │
+├──────────────────────────────┤
+│ lecture /proc                │
+│ lecture meminfo              │
+│ mise à jour des données      │
+└──────────────────────────────┘
+
+
+1. Thread principal = Interface utilisateur
+----------------------------------------
+Responsabilités : (dans le main et avec uiwin.c)
+ - ncurses ;
+ - affichage ;
+ - clavier ; 
+ - tri ;
+ - filtrage ;
+ - scrollbar ;
+ - navigation.
+
+Il ne lit plus /proc.
+
+Son rôle devient uniquement visuel et interactif.
+
+
+2. Thread secondaire = Collecte système
+--------------------------------------
+Responsabilités :
+ - parcourir /proc ;
+ - remplir t_process;
+ - lire /proc/meminfo;
+ - mettre à jour les structures globales.
+
+Ce thread tourne en boucle indépendante :
+
+while (running)  // running sera défini dans la structure des données partagées
+{
+    collecter_processus();
+    ...
+    lire_ram();
+    ...
+    usleep(200000); // 200 ms
+}
+
+
+
+La V2 ne constitue pas une simple amélioration fonctionnelle.
+-------------------------------------------------------------
+
+Elle transforme profondément :
+ - l’architecture ;
+ - le modèle d’exécution ;
+ - la gestion des données ;
+ - la qualité temps réel de l’application.
+
+La solution retenue est :
+ - cohérente ;
+ - scalable ;
+ - robuste ;
+ - conforme aux architectures professionnelles Linux.
+
+La migration depuis la V1.2.1 est particulièrement adaptée car votre code est déjà :
+ - modulaire ;
+ - propre ;
+ - structuré ;
+ - découplé.
+
+Angle d'approche :
+ - moniteurs système réels ;
+ - outils Linux professionnels ;
+ - architectures temps réel modernes.
+
+
+FONCTIONNEMENT
+--------------
+main
+ ├── init_shared
+ ├── pthread_create
+ └── boucle UI 
+ 'q' (gestion dans une fonction get_keypressed)
+ ├── running = 0
+ ├── pthread_join
+ ├── free_shared
+ ├── pthread_mutex_destroy
+ └── endwin()
+
+
+
+
+
+
 
 *******************************************
 FIN
