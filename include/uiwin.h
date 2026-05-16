@@ -2,6 +2,7 @@
 #define UIWIN_H
 
 #include "sysproc.h"
+#include <pthread.h>
 
 #define REFRESH_TIME 200			// Rafraichissement de la fenêtre
 #define L_DATA_GLOBAL 1 			// position du cartouche qui affiche les infos globales (3 lignes) apres le titre (+1)
@@ -23,6 +24,8 @@ void calcul_scroll(int nb_affiches, int lignes_dispo, int *scroll_offset, int *m
 void draw_scrollbar(int bar_height, int bar_pos, int y0);
 
 int cmp_filtre(const char* strg, const char* sub);
+
+int get_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter, int *running, pthread_mutex_t *mutex);
 
 void on_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter);
 

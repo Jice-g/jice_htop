@@ -15,7 +15,7 @@ void init_ncurses(void) {
     initscr();
     noecho();
     curs_set(FALSE); 	    // pas de saisie au départ
-    keypad(stdscr, TRUE);   // gestion des couleurs 
+    keypad(stdscr, TRUE);   // active les touches spéciales (flèches, etc.) 
     timeout(REFRESH_TIME);  // getch() attendra au plus REFRESH_TIME  millisecondes.    
 //  Colorisation :
     start_color(); // Activation du système de couleur de ncurses.
@@ -99,7 +99,7 @@ int cmp_filtre(const char* strg, const char* sub)
 	    { 
 	    
 		int j = 0;
-		while ( sub[j] 	&&  tolower((unsigned char)strg[i + j]) == tolower((unsigned char)sub[j])) {
+		while ( sub[j] && tolower((unsigned char)strg[i + j]) == tolower((unsigned char)sub[j])) {
 		   j++;   }
 		   		
 		if (sub[j] == '\0')
@@ -107,7 +107,23 @@ int cmp_filtre(const char* strg, const char* sub)
 	        }
 	    
 	    return 0;
-}    
+}   
+
+// get_keypressed : Gestion de la saisie utilisateur - cette séquence apparait deux fois dans le main
+// Elle est appelé hors zone critique Mutex - on pase l'adresses de running et pas le share et le mutex pour locker sa modification
+// Retourne 1 si on doit quitter, 0 sinon
+int get_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter, int *running, pthread_mutex_t *mutex)
+{
+    if (key == 'q' || key == 'Q')
+    {
+        pthread_mutex_lock(mutex);
+        *running = 0;
+        pthread_mutex_unlock(mutex);
+        return 1;  // signal de sortie
+    }
+    on_keypressed(key, mode, scroll_offset, filter);
+    return 0;
+} 
 
 
 // FONCTION SELECTION IHM
@@ -131,14 +147,15 @@ void on_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter)
     else if (key == KEY_DOWN)
     	(*scroll_offset)++;
     	
-    else if (key == '/') {
-        timeout(-1);
-        echo();
-        curs_set(TRUE);
-        getnstr(filter, 255);
-        noecho();
-        curs_set(FALSE);
-        timeout(REFRESH_TIME);
+    else if (key == '/') {       
+	timeout(-1);
+	echo();
+	curs_set(TRUE);
+	getnstr(filter, 255);
+	noecho();
+	curs_set(FALSE);
+	timeout(REFRESH_TIME);      
+      
     }
 }
 

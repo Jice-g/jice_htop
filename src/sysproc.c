@@ -41,7 +41,7 @@ int compter_processus(DIR *d) {
 // Nous ferons de même pour éviter toute erreur ou ambiguité --> on castera les constantes passées en argument.
 
 // Tri décroissant sur le numero pid :
-int compare_by_pid(const void *a, const void *b) {
+static int compare_by_pid(const void *a, const void *b) {
 	
     int pa = ((t_process *)a)->pid;  // check risque de débordement dans les comparateurs
     int pb = ((t_process *)b)->pid;  // ---
@@ -49,7 +49,7 @@ int compare_by_pid(const void *a, const void *b) {
 }
 
 // Tri décroissant sur la mémoire mem_kb :
-int compare_by_mem(const void *a, const void *b) {
+static int compare_by_mem(const void *a, const void *b) {
 
     long ma = ((t_process *)a)->mem_kb;  // check risque de débordement dans les comparateurs
     long mb = ((t_process *)b)->mem_kb;  // ...    
@@ -58,10 +58,10 @@ int compare_by_mem(const void *a, const void *b) {
 }
 
 // Tri décroissant le nom du process name :
-int compare_by_name(const void *a, const void *b) {
+static int compare_by_name(const void *a, const void *b) {
     const t_process *pa = a;
     const t_process *pb = b;
-    return strcmp(pa->name, pb->name);    // décroissant
+    return strcmp(pa->name, pb->name);    // croissant
 }
 
 
@@ -138,7 +138,7 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
 // - "MemAvailable : "
 // on écrit cette valeur en 'string' dans 'ligne' avec sscanf()
        
-int lire_ram(unsigned long *total, unsigned long *available)
+static int lire_ram(unsigned long *total, unsigned long *available)
 {
     FILE *f = fopen("/proc/meminfo", "r");
     char ligne[256];
@@ -166,6 +166,29 @@ int lire_ram(unsigned long *total, unsigned long *available)
 
 
 
+// Mise à jour des données RAM : 
+///
+void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent, unsigned long *selfused)
+{
+    if (!lire_ram(total, avail)) {  // Si on a zero c'est qu'on a un probleme avec l'accès à /proc/meminfo
+        *total = *avail = 0;
+        *percent = 0;
+        return;
+    }
+    *used = *total - *avail;
+    *percent = (*total > 0) ? (float)(*used * 100) / *total : 0;
+    
+    struct rusage selfusage; // rusage : struct de <sys/resource.h> pour lire la consommation du programme
+    if (getrusage(RUSAGE_SELF, &selfusage) == 0) {
+        // ru_maxrss est en kilo-octets
+        *selfused = selfusage.ru_maxrss;
+        }
+    else *selfused = 0;
+        
+}
+
+
+
 // Mode tri des enregistrements :
 ///
 void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb) {
@@ -184,28 +207,6 @@ void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb) {
         }
 }  
 
-
-
-// Mise à jour des données RAM : 
-///
-void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent, unsigned long *selfused)
-{
-    if (!lire_ram(total, avail)) {  // Si on a zero c'est qu'on a un probleme avec l'accès à /proc/meminfo
-        *total = *avail = 0;
-        *percent = 0;
-        return;
-    }
-    *used = *total - *avail;
-    *percent = (*total > 0) ? (float)(*used * 100) / *total : 0;
-    
-    struct rusage selfusage; // rusage struct de <sys/resource.h> pour lire la consommation du programme
-    if (getrusage(RUSAGE_SELF, &selfusage) == 0) {
-        // ru_maxrss est en kilo-octets
-        *selfused = selfusage.ru_maxrss;
-        }
-    else *selfused = 0;
-        
-}
 
 
 

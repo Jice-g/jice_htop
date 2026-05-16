@@ -21,7 +21,7 @@ DEP = $(OBJ:.o=.d)
 all: $(NAME)
 
 $(NAME): $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $^ -lncurses
+	$(CC) $(CFLAGS) -o $@ $^ -lncurses  -lpthread
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
