@@ -161,52 +161,9 @@ La V1.2.1 fonctionne avec :
  - attente clavier
  - recommencer
 
-┌──────────────────────────────┐
-│ Boucle principale unique     │
-├──────────────────────────────┤
-│ Lire /proc                   │
-│ Lire meminfo                 │
-│ Trier les processus          │
-│ Afficher ncurses             │
-│ Lire clavier                 │
-└──────────────────────────────┘
-
-
 
 Architecture JICE_HTOP V2:
 --------------------------------
-
-┌──────────────────────────────┐
-│ Thread UI (principal)        │
-├──────────────────────────────┤
-│ ncurses                      │
-│ clavier                      │
-│ scroll                       │
-│ affichage                    │
-└──────────────┬───────────────┘
-               │
-               │ mutex
-               ▼
-┌──────────────────────────────┐
-│ Données partagées            │
-├──────────────────────────────┤
-│ liste processus              │
-│ RAM                          │
-│ nb processus                 │
-│ état global                  │ 
-│ synchronisation              │
-└──────────────┬───────────────┘
-               │
-               │ mutex
-               ▼
-┌──────────────────────────────┐
-│ Thread Collecte              │
-├──────────────────────────────┤
-│ lecture /proc                │
-│ lecture meminfo              │
-│ mise à jour des données      │
-└──────────────────────────────┘
-
 
 1. Thread principal = Interface utilisateur
 ----------------------------------------
