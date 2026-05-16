@@ -228,21 +228,6 @@ Angle d'approche :
  - outils Linux professionnels ;
  - architectures temps réel modernes.
 
-
-FONCTIONNEMENT
---------------
-main
- ├── init_shared
- ├── pthread_create
- └── boucle UI 
- 'q' (gestion dans une fonction get_keypressed)
- ├── running = 0
- ├── pthread_join
- ├── free_shared
- ├── pthread_mutex_destroy
- └── endwin()
-
-
 ________________________________________________
 
 AUTEUR
