@@ -1,8 +1,7 @@
-
-========================================================
+********************************************************
 JICE‑HTOP  V2.0
 Mini‑réimplémentation pédagogique de htop en C / ncurses  
-=========================================================
+********************************************************
 
 La V2.0 intègre des modifications :
  - Majeures : intégration du multithreading
@@ -157,17 +156,9 @@ DEPENDANCES
 - GCC  
 
 
-AUTEUR
-------
-Projet réalisé par Jean-Christophe Gerace @Jicé,  
-dans le cadre du test d’entrée B3 – La Plateforme - 2026.
-
-
-
 ***********************************
 ARCHITECTURE MULTITHREAD :
 -----------------------------------
-
 
 Séparer :
  - l’interface utilisateur ;
@@ -311,9 +302,12 @@ main
  └── endwin()
 
 
+________________________________________________
 
-
-
+AUTEUR
+------
+Projet réalisé par Jean-Christophe Gerace @Jicé,  
+dans le cadre du test d’entrée B3 – La Plateforme - 2026.
 
 
 *******************************************
