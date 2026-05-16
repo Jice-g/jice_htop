@@ -166,7 +166,7 @@ Architecture JICE_HTOP V2:
 --------------------------------
 
 1. Thread principal = Interface utilisateur
-----------------------------------------
+
 Responsabilités : (dans le main et avec uiwin.c)
  - ncurses ;
  - affichage ;
@@ -182,7 +182,7 @@ Son rôle devient uniquement visuel et interactif.
 
 
 2. Thread secondaire = Collecte système
---------------------------------------
+
 Responsabilités :
  - parcourir /proc ;
  - remplir t_process;
