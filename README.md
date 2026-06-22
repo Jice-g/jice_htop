@@ -1,251 +1,134 @@
-********************************************************
-JICE‑HTOP  V2.0
-Mini‑réimplémentation pédagogique de htop en C / ncurses  
-********************************************************
+# JICE‑HTOP  
+Mini réimplémentation pédagogique de *htop* en C / ncurses  
+**Version 2.0 — Architecture multithread**  
+Projet réalisé pour l’admission en 3e année Bachelor IT — La Plateforme
 
-La V2.0 intègre des modifications :
- - Majeures : intégration du multithreading
- - Mineures : diverses (factorisation, lisibilité, robustesse (vérifications),...)
+JICE‑HTOP est un moniteur système interactif en mode texte, écrit en C et basé sur ncurses.  
+Il reproduit plusieurs fonctionnalités essentielles de *htop* en lisant directement les informations du système via `/proc`.
 
-# JICE-HTOP
+La version **2.0** introduit une **architecture multithread**, rendant l’interface plus fluide et réactive même lors de la collecte intensive des données système.
 
-Mini outil de supervision système sous Linux développé en C, inspiré de htop.
-
-Projet réalisé dans le cadre du test d'admission en 3e année à La Plateforme (Marseille).
-
-## Compétences démontrées
-
-* Développement système Linux
-* Langage C
-* Programmation multithread (POSIX Threads)
-* Synchronisation par mutex
-* Gestion mémoire dynamique
-* Lecture du système de fichiers `/proc`
-* Interface terminal avec ncurses
-* Architecture modulaire
-* Tri, filtrage et affichage temps réel
-* Gestion robuste des erreurs
+![Aperçu de JICE-HTOP](assets/img/screen-shot-01.png)
 
 ---
 
-## Présentation
+## Fonctionnalités principales
 
-JICE-HTOP est une application console interactive qui affiche en temps réel des informations système directement collectées depuis le pseudo-système de fichiers Linux `/proc`.
-
-L'objectif du projet était de concevoir une application complète, maintenable et évolutive, en privilégiant :
-
-* la robustesse ;
-* la modularité ;
-* la lisibilité du code ;
-* la séparation des responsabilités.
-
-L'application permet notamment :
-
-* l'affichage des processus actifs ;
-* le tri dynamique par PID, nom ou mémoire ;
-* le filtrage interactif ;
-* l'affichage de la mémoire système ;
-* le défilement vertical avec scrollbar ;
-* la mise à jour temps réel des données.
+- Affichage en temps réel des processus  
+- PID, nom, mémoire résidente (VmRSS)  
+- Tri dynamique : **PID / NOM / MEM**  
+- Filtrage interactif (`/`)  
+- Scroll vertical fluide + **scrollbar proportionnelle**  
+- Lecture directe de `/proc`  
+- Lecture de la RAM via `/proc/meminfo`  
+- Interface ncurses colorée et ergonomique  
+- **Multithreading : UI et collecte système séparées**  
+- **Double-buffering (Snap)** pour réduire le temps de verrouillage du mutex
 
 ---
 
-## Architecture
+## Architecture du projet
 
-### Version 2 : architecture multithread
-
-L'application repose sur deux threads distincts.
-
-### Thread principal : Interface utilisateur
-
-Responsabilités :
-
-* affichage ncurses ;
-* gestion clavier ;
-* tri ;
-* filtrage ;
-* navigation ;
-* scrollbar.
-
-### Thread secondaire : Collecte système
-
-Responsabilités :
-
-* parcours de `/proc` ;
-* collecte des processus ;
-* lecture de `/proc/meminfo` ;
-* mise à jour des données système.
-
-Les données sont partagées via une structure commune protégée par mutex.
-
-```text
-                +------------------+
-                |  Thread UI       |
-                |  ncurses         |
-                +--------+---------+
-                         |
-                         | mutex
-                         |
-                +--------v---------+
-                |  Données         |
-                |  partagées       |
-                +--------+---------+
-                         |
-                +--------v---------+
-                | Thread Collecte  |
-                | /proc            |
-                +------------------+
 ```
-
-Le thread d'interface travaille sur une copie locale ("snapshot") des données afin de minimiser le temps passé en section critique.
-
----
-
-## Structure du projet
-
-```text
 jice_htop/
 │
 ├── src/
-│   ├── main.c
-│   ├── sysproc.c
-│   ├── uiwin.c
-│   └── threadshare.c
+│   ├── main.c          # boucle UI, ncurses, interactions
+│   ├── sysproc.c       # lecture /proc, RAM, tri
+│   ├── threadshare.c   # thread de collecte, double-buffering
+│   ├── uiwin.c         # affichage, bandeaux, scrollbar
 │
 ├── include/
 │   ├── sysproc.h
+│   ├── threadshare.h   # structure partagée t_shared + mutex
 │   ├── uiwin.h
-│   └── threadshare.h
 │
-├── obj/
-│
-├── Makefile
-│
-└── README.md
+└── Makefile
 ```
 
 ---
 
-## Informations collectées
+## Architecture multithread (V2.0)
 
-### Processus
+### Thread principal — Interface utilisateur
+- ncurses  
+- affichage  
+- clavier  
+- scroll  
+- filtrage  
+- tri  
+- **ne lit plus /proc**  
 
-Lecture directe de :
+### Thread secondaire — Collecte système
+- lecture de `/proc/[PID]/*`  
+- lecture de `/proc/meminfo`  
+- mise à jour des données partagées  
+- boucle indépendante (200 ms)  
 
-```text
-/proc/[PID]/comm
-/proc/[PID]/status
-```
-
-Informations affichées :
-
-* PID ;
-* nom du processus ;
-* mémoire résidente (VmRSS).
-
-### Mémoire système
-
-Lecture directe de :
-
-```text
-/proc/meminfo
-```
-
-Informations affichées :
-
-* mémoire totale ;
-* mémoire disponible ;
-* mémoire utilisée ;
-* pourcentage d'utilisation ;
-* consommation mémoire de l'application.
-
----
-
-## Commandes
-
-| Touche | Action                 |
-| ------ | ---------------------- |
-| q      | Quitter                |
-| p      | Tri par PID            |
-| n      | Tri par nom            |
-| m      | Tri par mémoire        |
-| ↑ ↓    | Défilement             |
-| /      | Filtrage des processus |
+### Synchronisation
+- mutex protégeant la structure partagée  
+- double-buffering pour limiter la durée des sections critiques  
+- modèle robuste et scalable  
+- architecture proche des outils Linux professionnels  
 
 ---
 
 ## Compilation
 
-### Dépendances
+Installer ncurses :  
+sudo apt install libncurses-dev
+Compiler :  make
+Nettoyer :  make clean
+Exécuter :  ./jice_htop
 
-* GCC
-* ncurses
-* Linux
+---
 
-Installation de ncurses :
+## Commandes
 
-```bash
-sudo apt install libncurses5-dev libncursesw5-dev
-```
+- `q` : quitter  
+- `p` : tri par PID  
+- `n` : tri par NOM  
+- `m` : tri par MEM  
+- `↑ / ↓` : scroll  
+- `/` : filtrage interactif  
 
-Compilation :
+---
 
-```bash
-make
-```
+## Détails techniques
 
-Nettoyage :
+### Lecture des processus
+- `/proc/[PID]/comm` → nom  
+- `/proc/[PID]/status` → VmRSS  
+- détection des PID via `readdir()`  
 
-```bash
-make clean
-```
+### Lecture de la RAM
+- `/proc/meminfo`  
+- RAM utilisée = `MemTotal – MemAvailable`  
 
-Reconstruction complète :
-
-```bash
-make re
+### Scrollbar proportionnelle
+```c
+bar_pos = (scroll_offset * (bar_height - 1)) / max_scroll;
 ```
 
 ---
 
-## Exécution
-
-```bash
-./jice_htop
-```
-
----
-
-## Points techniques intéressants
-
-* utilisation de `qsort()` avec comparateurs dédiés ;
-* gestion mémoire dynamique avec `calloc()` et `realloc()` ;
-* synchronisation par mutex POSIX ;
-* réduction du temps de verrouillage grâce à un mécanisme de snapshot local ;
-* prise en compte des cas limites liés aux processus disparaissant pendant la collecte ;
-* architecture facilement extensible.
-
----
-
-## Perspectives d'évolution
-
-* affichage CPU par processus ;
-* affichage multi-cœurs ;
-* statistiques historiques ;
-* couleurs dynamiques ;
-* export des métriques ;
-* optimisation des performances de collecte.
+## Dépendances
+- Linux  
+- /proc  
+- ncurses  
+- GCC  
 
 ---
 
 ## Auteur
+Projet réalisé par **Jean‑Christophe Gerace   @Jicé**  
+Dans le cadre du **test d’entrée B3 – La Plateforme (2026)**.
 
-Jean-Christophe Gerace  @jice
+---
 
-Projet pédagogique réalisé dans le cadre du test d'admission en troisième année à La Plateforme.
-
-
-
-*******************************************
-FIN
+## Roadmap (V3.0)
+- Export JSON des processus  
+- Affichage CPU par cœur  
+- Kill de processus  
+- Tests unitaires  
 
