@@ -1,134 +1,209 @@
-# JICE‑HTOP  
-Mini réimplémentation pédagogique de *htop* en C / ncurses  
-**Version 2.0 — Architecture multithread**  
-Projet réalisé pour l’admission en 3e année Bachelor IT — La Plateforme
+*******************************************************************************
+JICE_HTOP
+Moniteur système Linux interactif développé en langage **C** avec **ncurses**.
+********************************************************************************
 
-JICE‑HTOP est un moniteur système interactif en mode texte, écrit en C et basé sur ncurses.  
-Il reproduit plusieurs fonctionnalités essentielles de *htop* en lisant directement les informations du système via `/proc`.
+JICE-HTOP est un projet personnel inspiré de *htop*, conçu pour approfondir le développement système sous Linux et démontrer une démarche professionnelle de conception logicielle.
 
-La version **2.0** introduit une **architecture multithread**, rendant l’interface plus fluide et réactive même lors de la collecte intensive des données système.
-
-![Aperçu de JICE-HTOP](assets/img/screen-shot-01.png)
+> **Objectif :** mettre en œuvre une architecture modulaire, un modèle concurrent basé sur POSIX Threads et une collecte des informations système via `/proc`.
 
 ---
 
-## Fonctionnalités principales
+**Contexte**
 
-- Affichage en temps réel des processus  
-- PID, nom, mémoire résidente (VmRSS)  
-- Tri dynamique : **PID / NOM / MEM**  
-- Filtrage interactif (`/`)  
-- Scroll vertical fluide + **scrollbar proportionnelle**  
-- Lecture directe de `/proc`  
-- Lecture de la RAM via `/proc/meminfo`  
-- Interface ncurses colorée et ergonomique  
-- **Multithreading : UI et collecte système séparées**  
-- **Double-buffering (Snap)** pour réduire le temps de verrouillage du mutex
+Ce projet a été initié dans le cadre de mon admission directe en *3ᵉ année Bachelor IT – Développeur Logiciel & DevOps* à **La Plateforme** (Marseille).
+
+Il est désormais développé comme un projet logiciel PERSONNEL documenté afin d'accompagner ma montée en compétence et ma recherche d'alternance en Développement Logiciel / DevOps.
 
 ---
 
-## Architecture du projet
+## Aperçu
 
-```
+![Interface principale](assets/img/screen-shot-01.png)
+
+---
+
+## Fonctionnalités
+
+### Supervision système
+
+- utilisation CPU
+- mémoire RAM
+- mémoire Swap
+- uptime
+- nombre de processus
+
+### Gestion des processus
+
+- lecture du système `/proc`
+- liste des processus actifs
+- tri par PID, nom ou mémoire
+- filtrage interactif
+- rafraîchissement temps réel
+
+### Interface utilisateur
+
+- interface texte avec **ncurses**
+- navigation clavier
+- affichage plein écran
+- scrollbar proportionnelle
+- interface réactive grâce au multithreading
+
+---
+
+## Compétences mises en œuvre
+
+| Domaine | Technologies |
+|----------|--------------|
+| Langage | C |
+| Système | Linux, `/proc` |
+| Interface | ncurses |
+| Concurrence | POSIX Threads, mutex |
+| Architecture | Modulaire |
+| Mémoire | Allocation dynamique |
+| Build | GCC, Make |
+| Versioning | Git, GitHub |
+---
+
+## Architecture
+
+Le projet repose sur une séparation stricte des responsabilités :
+
+- acquisition des données système ;
+- synchronisation des données partagées ;
+- affichage de l'interface utilisateur.
+
+### Organisation du dépôt
+
+```text
 jice_htop/
-│
 ├── src/
-│   ├── main.c          # boucle UI, ncurses, interactions
-│   ├── sysproc.c       # lecture /proc, RAM, tri
-│   ├── threadshare.c   # thread de collecte, double-buffering
-│   ├── uiwin.c         # affichage, bandeaux, scrollbar
-│
 ├── include/
-│   ├── sysproc.h
-│   ├── threadshare.h   # structure partagée t_shared + mutex
-│   ├── uiwin.h
-│
-└── Makefile
+├── docs/
+├── assets/
+├── Makefile
+├── CHANGELOG.md
+└── README.md
 ```
+
+### Vue d'ensemble
+
+
+![Interface principale](assets/img/mermaid_Architect-jice_htop_macro.png)
+
+Le cœur de l'application repose sur un **contexte partagé (`t_shared`)** synchronisé par mutex entre un thread de collecte et le thread principal chargé de l'affichage.
+
+Cette architecture permet de maintenir une interface fluide tout en limitant les sections critiques.
 
 ---
 
-## Architecture multithread (V2.0)
+## Choix de conception
 
-### Thread principal — Interface utilisateur
-- ncurses  
-- affichage  
-- clavier  
-- scroll  
-- filtrage  
-- tri  
-- **ne lit plus /proc**  
+### Accès direct à `/proc`
 
-### Thread secondaire — Collecte système
-- lecture de `/proc/[PID]/*`  
-- lecture de `/proc/meminfo`  
-- mise à jour des données partagées  
-- boucle indépendante (200 ms)  
+Le projet choisit de parser directement les pseudo-fichiers du noyau Linux plutôt que d'utiliser une bibliothèque spécialisée.
 
-### Synchronisation
-- mutex protégeant la structure partagée  
-- double-buffering pour limiter la durée des sections critiques  
-- modèle robuste et scalable  
-- architecture proche des outils Linux professionnels  
+Ce choix permet :
+
+- une meilleure compréhension des mécanismes internes de Linux ;
+- une réduction des dépendances externes ;
+- une maîtrise complète du traitement des données.
+
+### Architecture multithread
+
+La collecte système est exécutée dans un thread dédié.
+
+Le thread principal reste exclusivement responsable de l'interface utilisateur.
+
+Les échanges sont réalisés via un contexte partagé protégé par mutex.
+
+---
+
+## Documentation
+
+Le dépôt est accompagné d'une documentation technique décrivant la démarche d'ingénierie du projet.
+
+- [01 - Exigences logicielles](docs/01-Exigences-logicielles.md)
+- [02 - Contraintes techniques](docs/02-Contraintes-techniques.md)
+- [03 - Architecture logicielle](docs/03-Architecture.md)
+- [04 - Feuille de route](docs/04-Feuille-de-route.md)
+
+Consulter le dossier **docs/**.
 
 ---
 
 ## Compilation
 
-Installer ncurses :  
+Installation de la dépendance :
+
+```bash
 sudo apt install libncurses-dev
-Compiler :  make
-Nettoyer :  make clean
-Exécuter :  ./jice_htop
+```
+
+Compilation :
+
+```bash
+make
+```
+
+Exécution :
+
+```bash
+./jice_htop
+```
 
 ---
 
 ## Commandes
 
-- `q` : quitter  
-- `p` : tri par PID  
-- `n` : tri par NOM  
-- `m` : tri par MEM  
-- `↑ / ↓` : scroll  
-- `/` : filtrage interactif  
-
+| Touche |      Action           |
+|--------|-----------------------|
+| q, Q   |      Quitter          |
+| p, P   |     Tri par PID       |
+| n, N   |     Tri par nom       |
+| m, M   |     Tri par mémoire   |
+| ↑ ↓   |     Défilement        |
+|  /     | Filtrer les processus |
+|--------------------------------|
 ---
 
-## Détails techniques
+## Roadmap
 
-### Lecture des processus
-- `/proc/[PID]/comm` → nom  
-- `/proc/[PID]/status` → VmRSS  
-- détection des PID via `readdir()`  
+### Fonctionnalités
 
-### Lecture de la RAM
-- `/proc/meminfo`  
-- RAM utilisée = `MemTotal – MemAvailable`  
+- [ ] Arrêt ("kill") d'un processus
+- [ ] Nouvelles métriques système
+- [ ] Amélioration du moteur de rendu
 
-### Scrollbar proportionnelle
-```c
-bar_pos = (scroll_offset * (bar_height - 1)) / max_scroll;
-```
+### Qualité logicielle
 
+- [ ] Intégration de `cppcheck`
+- [ ] Intégration de `clang-tidy`
+- [ ] Pipeline GitHub Actions
+- [ ] Couverture de tests
+- [ ] Choix d'une licence Open Source
 ---
 
-## Dépendances
-- Linux  
-- /proc  
-- ncurses  
-- GCC  
+## Qualité logicielle
 
----
+Le projet est développé dans une démarche de qualité logicielle visant à produire un code robuste, lisible et maintenable.
+
+Les vérifications réalisées incluent notamment :
+
+- compilation sans avertissement (`-Wall -Wextra -Werror`)
+- analyse mémoire avec **Valgrind (Memcheck)**
+- vérification de l'exécution avec **AddressSanitizer (ASan)**
+- détection des comportements indéfinis avec **UndefinedBehaviorSanitizer (UBSan)**
+
+Les analyses réalisées n'ont mis en évidence **aucune fuite mémoire imputable au code applicatif** (`definitely lost : 0`).
+
+L'intégration d'outils complémentaires (analyse statique et intégration continue) est prévue dans de prochaines évolutions du projet.
+
 
 ## Auteur
-Projet réalisé par **Jean‑Christophe Gerace   @Jicé**  
-Dans le cadre du **test d’entrée B3 – La Plateforme (2026)**.
 
----
+**Jean-Christophe Gerace**   *@jicé*
 
-## Roadmap (V3.0)
-- Export JSON des processus  
-- Affichage CPU par cœur  
-- Kill de processus  
-- Tests unitaires  
+Projet personnel développé dans le cadre de ma spécialisation en Développement Logiciel & DevOps.
+
 
