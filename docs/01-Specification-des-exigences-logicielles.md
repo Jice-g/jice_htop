@@ -2,7 +2,7 @@
 
 **Projet :** JICE-HTOP
 
-**Version :** 1.0 (brouillon)
+**Version :** 1.0
 
 ---
 
