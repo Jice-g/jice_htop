@@ -5,5 +5,4 @@ jice_htop
 obj/
 
 # Temporary files
-*.txt
 *.log
