@@ -80,6 +80,7 @@ jice_htop/
 ├── src/
 ├── include/
 ├── docs/
+├── test/
 ├── assets/
 ├── Makefile
 ├── CHANGELOG.md
