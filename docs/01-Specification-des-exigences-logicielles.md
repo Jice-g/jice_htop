@@ -219,7 +219,7 @@ Le logiciel suppose :
 
 Les contraintes techniques détaillées (langage, bibliothèques, système d'exploitation, architecture, performances, dépendances, etc.) sont décrites dans le document :
 
-**01-Specification-des-exigences-logicielles.md**
+**02-Contraintes-techniques.md**
 
 ---
 
