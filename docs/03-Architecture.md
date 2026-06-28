@@ -64,6 +64,8 @@ jice_htop/
 │
 ├── docs/
 │
+├── test/
+│
 ├── assets/
 │
 ├── Makefile
