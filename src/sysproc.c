@@ -65,7 +65,7 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
         }
 
         /*
-         * Resident memory — VmRSS in /proc/[PID]/status, in kibibytes.
+         * Resident memory — VmRSS in /proc/[PID]/status, in kB.
          *
          * VmRSS may be absent for:
          *   - Kernel threads  : no user-space memory mapping.
@@ -139,7 +139,7 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
 
     /*
      * ru_maxrss (getrusage RUSAGE_SELF) reports the peak RSS of this process
-     * in kibibytes on Linux.  Used to display jice_htop's own footprint.
+     * in kB on Linux.  Used to display jice_htop's own footprint.
      */
     struct rusage self;
     *selfused = (getrusage(RUSAGE_SELF, &self) == 0) ? self.ru_maxrss : 0;

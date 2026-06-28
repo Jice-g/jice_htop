@@ -27,7 +27,7 @@ typedef struct s_process
 {
     int     pid;        /**< Numeric process identifier                      */
     char    name[256];  /**< Process name read from /proc/[PID]/comm         */
-    long    mem_kb;     /**< Resident set size in kibibytes (VmRSS), or 0
+    long    mem_kb;     /**< Resident set size in kB (VmRSS), or 0
                              if unavailable (kernel thread, zombie, etc.)    */
 }   t_process;
 
@@ -80,11 +80,11 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb);
  *
  * All output pointers are mandatory; none may be NULL.
  *
- * @param[out] total     Total installed RAM, in kibibytes.
- * @param[out] avail     Available RAM (MemAvailable), in kibibytes.
- * @param[out] used      Used RAM computed as (total - avail), in kibibytes.
+ * @param[out] total     Total installed RAM, in kB.
+ * @param[out] avail     Available RAM (MemAvailable), in kB.
+ * @param[out] used      Used RAM computed as (total - avail), in kB.
  * @param[out] percent   Used RAM as a percentage of total (0.0 if total == 0).
- * @param[out] selfused  Peak resident set size of this process, in kibibytes.
+ * @param[out] selfused  Peak resident set size of this process, in kB.
  */
 void update_ram_info(unsigned long *total, unsigned long *avail,
                      unsigned long *used, float *percent,

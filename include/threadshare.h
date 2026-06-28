@@ -30,11 +30,11 @@ typedef struct s_shared
     t_process       *listProc;      /**< Heap-allocated process array (capacity: @c capacite) */
     int              nb;            /**< Number of valid entries in @c listProc               */
     int              capacite;      /**< Allocated capacity of @c listProc, in entries        */
-    unsigned long    total_ram;     /**< Total installed RAM, in kibibytes                    */
-    unsigned long    avail_ram;     /**< Available RAM, in kibibytes                          */
-    unsigned long    ram_used;      /**< Used RAM (total - avail), in kibibytes               */
+    unsigned long    total_ram;     /**< Total installed RAM, in kB                    */
+    unsigned long    avail_ram;     /**< Available RAM, in kB                          */
+    unsigned long    ram_used;      /**< Used RAM (total - avail), in kB               */
     float            ram_percent;   /**< Used RAM as a percentage of total                    */
-    unsigned long    self_use;      /**< Peak RSS of this process, in kibibytes               */
+    unsigned long    self_use;      /**< Peak RSS of this process, in kB               */
     int              running;       /**< Collector loop control: 1 = run, 0 = stop            */
     pthread_mutex_t  mutex;         /**< Guards all fields above                              */
 } t_shared;

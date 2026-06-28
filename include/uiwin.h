@@ -56,11 +56,11 @@ void init_ncurses(void);
 /**
  * @brief Render the RAM metrics block at rows L_DATA_GLOBAL … +2.
  *
- * @param total     Total installed RAM, in kibibytes.
- * @param avail     Available RAM, in kibibytes.
- * @param used      Used RAM, in kibibytes.
+ * @param total     Total installed RAM, in kB.
+ * @param avail     Available RAM, in kB.
+ * @param used      Used RAM, in kB.
  * @param percent   Used RAM as a percentage of total.
- * @param self_use  Peak RSS of this process, in kibibytes.
+ * @param self_use  Peak RSS of this process, in kB.
  */
 void ram_display(const unsigned long total, const unsigned long avail,
                  const unsigned long used, const float percent,
