@@ -1,7 +1,6 @@
-*******************************************************************************
-JICE_HTOP
-Moniteur système Linux interactif développé en langage **C** avec **ncurses**.
-********************************************************************************
+# JICE_HTOP
+**Moniteur système Linux interactif développé en langage C avec ncurses.
+
 
 JICE-HTOP est un projet personnel inspiré de *htop*, conçu pour approfondir le développement système sous Linux et démontrer une démarche professionnelle de conception logicielle.
 
@@ -27,11 +26,10 @@ Il est désormais développé comme un projet logiciel PERSONNEL documenté afin
 
 ### Supervision système
 
-- utilisation CPU
-- mémoire RAM
-- mémoire Swap
-- uptime
-- nombre de processus
+- mémoire RAM (totale, utilisée, disponible, pourcentage)
+- empreinte mémoire du processus jice_htop lui-même
+- nombre de processus actifs
+
 
 ### Gestion des processus
 
@@ -165,7 +163,7 @@ Exécution :
 | m, M   |     Tri par mémoire   |
 | ↑ ↓   |     Défilement        |
 |  /     | Filtrer les processus |
-|--------------------------------|
+
 ---
 
 ## Roadmap
@@ -175,6 +173,11 @@ Exécution :
 - [ ] Arrêt ("kill") d'un processus
 - [ ] Nouvelles métriques système
 - [ ] Amélioration du moteur de rendu
+
+**Affichage**
+- utilisation CPU
+- mémoire Swap
+- uptime
 
 ### Qualité logicielle
 

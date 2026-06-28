@@ -46,6 +46,21 @@ Les fonctionnalités de la version 1.x ont été intégralement conservées :
 
 ---
 
+## [2.1.0] - 2026-06-28
+
+### Corrigé
+
+**Correction de bug :**
+
+- Le tri alphabétique (SORT_NAME) affichait les threads noyau (ex. `[kthreadd]`)
+  comme un groupe parasite intercalé entre les noms à majuscule et les noms en
+  minuscule. Cause : `[` vaut ASCII 91, entre `Z` (90) et `a` (97). Corrigé par
+  l'introduction de `skip_non_alpha()` et le remplacement de `strcmp()` par
+  `strcasecmp()`qui prend en compte la casse.
+  Voir `docs/bugfixes/BUGFIX_sort_nom.md`.
+  
+---
+
 ## [1.x] - Version initiale
 
 ### Architecture
