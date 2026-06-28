@@ -40,7 +40,7 @@ int main(void)
      * UI layout and scroll state
      * Each variable is reset at the top of every render iteration.
      * ------------------------------------------------------------------------- */
-    char bandeau[512];          /* Formatted status bar string (bottom)          */
+    char status_bar[512];       /* Formatted status bar string (bottom)          */
     int  lines_written  = 0;    /* Rows actually rendered in the process panel   */
     int  nb_displayed   = 0;    /* Rows matching the active filter               */
     int  lines_avail    = 0;    /* Rows available between top and bottom banners */
@@ -60,21 +60,21 @@ int main(void)
      * process list to keep the critical section as short as possible.
      * Initial capacity is 256 entries; realloc() extends it on demand.
      */
-    t_process    *snap_liste      = NULL;
-    int           snap_nb         = 0;
-    int           snap_capacite   = 0;
+    t_process    *snap_list      = NULL;
+    int           snap_count         = 0;
+    int           snap_capacity   = 0;
     unsigned long snap_total_ram  = 0;
     unsigned long snap_avail_ram  = 0;
     unsigned long snap_ram_used   = 0;
     unsigned long snap_self_use   = 0;
     float         snap_ram_percent = 0.0f;
 
-    snap_liste = calloc(256, sizeof(t_process));
-    if (!snap_liste) {
-        perror("calloc snap_liste");
+    snap_list = calloc(256, sizeof(t_process));
+    if (!snap_list) {
+        perror("calloc snap_list");
         return 1;
     }
-    snap_capacite = 256;
+    snap_capacity = 256;
 
 
     /* =========================================================================
@@ -83,10 +83,10 @@ int main(void)
 
     init_shared(&shared);
 
-    if (pthread_create(&th_collecte, NULL, thread_collecte, &shared) != 0) {
+    if (pthread_create(&th_collecte, NULL, collector_thread, &shared) != 0) {
         perror("pthread_create");
         free_shared(&shared);
-        free(snap_liste);
+        free(snap_list);
         return 1;
     }
 
@@ -111,33 +111,33 @@ int main(void)
          *
          * The lock is held only for the duration of the copy so the collector
          * thread is not blocked during rendering.  realloc() is performed
-         * inside the lock because snap_liste must match snap_nb before memcpy.
+         * inside the lock because snap_list must match snap_count before memcpy.
          * --------------------------------------------------------------------- */
  
         pthread_mutex_lock(&shared.mutex);
 
-        snap_nb          = shared.nb;
+        snap_count          = shared.nb;
         snap_total_ram   = shared.total_ram;
         snap_avail_ram   = shared.avail_ram;
         snap_ram_used    = shared.ram_used;
         snap_ram_percent = shared.ram_percent;
         snap_self_use    = shared.self_use;
 
-        if (snap_nb > snap_capacite) {
-            snap_capacite = snap_nb + 20;
-            t_process *tmp = realloc(snap_liste, snap_capacite * sizeof(t_process));
+        if (snap_count > snap_capacity) {
+            snap_capacity = snap_count + 20;
+            t_process *tmp = realloc(snap_list, snap_capacity * sizeof(t_process));
             if (tmp) {
-                snap_liste = tmp;
+                snap_list = tmp;
             } else {
                 pthread_mutex_unlock(&shared.mutex);
-                perror("realloc snap_liste");
+                perror("realloc snap_list");
                 err_flag = 1;
                 break;
             }
         }
 
-        if (snap_nb > 0 && shared.listProc)
-            memcpy(snap_liste, shared.listProc, snap_nb * sizeof(t_process));
+        if (snap_count > 0 && shared.proc_list)
+            memcpy(snap_list, shared.proc_list, snap_count * sizeof(t_process));
             
         pthread_mutex_unlock(&shared.mutex);
         /* End of critical section */
@@ -146,7 +146,7 @@ int main(void)
         /* ---------------------------------------------------------------------
          * Sort the snapshot according to the current user-selected mode
          * --------------------------------------------------------------------- */
-        switch_sort(sort_mode, snap_liste, snap_nb);
+        switch_sort(sort_mode, snap_list, snap_count);
 
 
         /* ---------------------------------------------------------------------
@@ -155,7 +155,7 @@ int main(void)
         clear();
 
         attron(COLOR_PAIR(1) | A_BOLD);
-        mvprintw(0, 0, "JICE-HTOP | Processus : %d                      ", snap_nb);
+        mvprintw(0, 0, "JICE-HTOP | Processus : %d                      ", snap_count);
         attroff(COLOR_PAIR(1) | A_BOLD);
 
         ram_display(snap_total_ram, snap_avail_ram,
@@ -170,8 +170,8 @@ int main(void)
 
         /* Count rows that pass the current filter before rendering */
         nb_displayed = 0;
-        for (int k = 0; k < snap_nb; k++) {
-            if (filter[0] == '\0' || cmp_filtre(snap_liste[k].name, filter))
+        for (int k = 0; k < snap_count; k++) {
+            if (filter[0] == '\0' || match_filter(snap_list[k].name, filter))
                 nb_displayed++;
         }
 
@@ -195,25 +195,25 @@ int main(void)
 
         /* Compute scrollbar geometry, then render visible rows */
         lines_avail = LINES - (L_LIST_PROCESS + 2);
-        calcul_scroll(nb_displayed, lines_avail,
+        compute_scroll(nb_displayed, lines_avail,
                       &scroll_offset, &max_scroll, &bar_height, &bar_pos);
         draw_scrollbar(bar_height, bar_pos, L_LIST_PROCESS);
 
         int i = 0;   /* Index relative to the filtered list                */
-        int j = 0;   /* Absolute index into snap_liste                     */
+        int j = 0;   /* Absolute index into snap_list                     */
 
-        while ((i + scroll_offset < snap_nb) && (lines_written < lines_avail)) {
+        while ((i + scroll_offset < snap_count) && (lines_written < lines_avail)) {
             j = i + scroll_offset;
 
-            if (filter[0] != '\0' && !cmp_filtre(snap_liste[j].name, filter)) {
+            if (filter[0] != '\0' && !match_filter(snap_list[j].name, filter)) {
                 i++;
                 continue;
             }
 
             mvprintw(lines_written + L_LIST_PROCESS, 1, "%-5d %9ld    %s",
-                     snap_liste[j].pid,
-                     snap_liste[j].mem_kb,
-                     snap_liste[j].name);
+                     snap_list[j].pid,
+                     snap_list[j].mem_kb,
+                     snap_list[j].name);
             lines_written++;
             i++;
         }
@@ -233,8 +233,8 @@ int main(void)
         attroff(COLOR_PAIR(4));
 
         attron(COLOR_PAIR(5) | A_BOLD);
-        bandeau_bas(bandeau, COLS, sort_mode, filter);
-        mvprintw(LINES - 1, 0, "%s", bandeau);
+        low_status_bar(status_bar, COLS, sort_mode, filter);
+        mvprintw(LINES - 1, 0, "%s", status_bar);
         attroff(COLOR_PAIR(5) | A_BOLD);
 
 
@@ -260,7 +260,7 @@ int main(void)
      * ========================================================================= */
     pthread_join(th_collecte, NULL);
     free_shared(&shared);
-    free(snap_liste);
+    free(snap_list);
     endwin();
 
     return err_flag;

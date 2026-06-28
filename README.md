@@ -1,5 +1,5 @@
 # JICE_HTOP
-**Moniteur système Linux interactif développé en langage C avec ncurses.
+**Moniteur système Linux interactif développé en langage C avec ncurses.**
 
 
 JICE-HTOP est un projet personnel inspiré de *htop*, conçu pour approfondir le développement système sous Linux et démontrer une démarche professionnelle de conception logicielle.

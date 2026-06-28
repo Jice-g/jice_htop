@@ -20,7 +20,7 @@
 /**
  * @brief Snapshot of a single process at one point in time.
  *
- * Populated by remplir_liste_processus() from /proc/[PID]/comm
+ * Populated by fill_process_list() from /proc/[PID]/comm
  * and /proc/[PID]/status (VmRSS field).
  */
 typedef struct s_process
@@ -54,26 +54,26 @@ typedef enum e_sort_mode {
  *
  * Each numeric entry corresponds to one running process.
  * The directory is rewound to its start before returning so that the same
- * DIR handle can be passed immediately to remplir_liste_processus().
+ * DIR handle can be passed immediately to fill_process_list().
  *
  * @param d  Open DIR handle for /proc.  Must not be NULL.
  * @return   Number of process entries found.
  */
-int compter_processus(DIR *d);
+int count_processes(DIR *d);
 
 /**
  * @brief Populate a process array from an open /proc directory.
  *
  * Iterates over numeric entries in @p d and fills up to @p nb slots in
- * @p liste with PID, name, and resident memory (VmRSS).  Entries whose
+ * @p list with PID, name, and resident memory (VmRSS).  Entries whose
  * /proc/[PID]/comm or /proc/[PID]/status files disappear mid-scan (e.g.
  * short-lived processes) are silently skipped.
  *
  * @param d      Open DIR handle for /proc.
- * @param liste  Destination array; must hold at least @p nb elements.
+ * @param list  Destination array; must hold at least @p nb elements.
  * @param nb     Maximum number of entries to write.
  */
-void remplir_liste_processus(DIR *d, t_process *liste, int nb);
+void fill_process_list(DIR *d, t_process *list, int nb);
 
 /**
  * @brief Refresh RAM usage metrics from /proc/meminfo and getrusage().
@@ -96,7 +96,7 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Sort @p liste in-place according to @p sort_mode.
+ * @brief Sort @p list in-place according to @p sort_mode.
  *
  * Delegates to qsort() with the appropriate comparator:
  *   - SORT_PID  : ascending by PID
@@ -104,10 +104,10 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
  *   - SORT_MEM  : descending by resident memory
  *
  * @param sort_mode  Requested sort criterion.
- * @param liste      Array to sort; may be NULL if @p nb is 0.
- * @param nb         Number of elements in @p liste.
+ * @param list      Array to sort; may be NULL if @p nb is 0.
+ * @param nb         Number of elements in @p list.
  */
-void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb);
+void switch_sort(t_sort_mode sort_mode, t_process *list, int nb);
 
 
 #endif /* SYSPROC_H */

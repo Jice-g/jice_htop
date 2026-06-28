@@ -19,7 +19,7 @@
  * Process list — data acquisition
  * ========================================================================= */
 
-int compter_processus(DIR *d)
+int count_processes(DIR *d)
 {
     int total = 0;
     struct dirent *entry;
@@ -28,13 +28,13 @@ int compter_processus(DIR *d)
         if (isdigit(entry->d_name[0]))
             total++;
     }
-    /* Rewind so the same handle can be passed to remplir_liste_processus(). */
+    /* Rewind so the same handle can be passed to fill_process_list(). */
     rewinddir(d);
     return total;
 }
 
 
-void remplir_liste_processus(DIR *d, t_process *liste, int nb)
+void fill_process_list(DIR *d, t_process *list, int nb)
 {
     struct dirent *entry;
     char  path[STRLG];
@@ -48,7 +48,7 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
             continue;
 
         /* PID — the directory name itself is the numeric PID. */
-        liste[i].pid = atoi(entry->d_name);
+        list[i].pid = atoi(entry->d_name);
 
         /*
          * Process name — /proc/[PID]/comm contains a single line with the
@@ -56,11 +56,11 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
          * trailing newline left by fgets().
          */
         snprintf(path, sizeof(path), "/proc/%s/comm", entry->d_name);
-        liste[i].name[0] = '\0';
+        list[i].name[0] = '\0';
         f = fopen(path, "r");
         if (f) {
-            if (fgets(liste[i].name, sizeof(liste[i].name), f))
-                liste[i].name[strcspn(liste[i].name, "\n")] = '\0';
+            if (fgets(list[i].name, sizeof(list[i].name), f))
+                list[i].name[strcspn(list[i].name, "\n")] = '\0';
             fclose(f);
         }
 
@@ -70,16 +70,16 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
          * VmRSS may be absent for:
          *   - Kernel threads  : no user-space memory mapping.
          *   - Zombie processes: memory already released, not yet reaped.
-         *   - Processes that exited between compter_processus() and here.
+         *   - Processes that exited between count_processes() and here.
          * In all those cases mem_kb stays at 0.
          */
         snprintf(path, sizeof(path), "/proc/%s/status", entry->d_name);
-        liste[i].mem_kb = 0;
+        list[i].mem_kb = 0;
         f = fopen(path, "r");
         if (f) {
             while (fgets(line, sizeof(line), f)) {
                 if (strncmp(line, "VmRSS:", 6) == 0) {
-                    sscanf(line, "VmRSS: %ld", &liste[i].mem_kb);
+                    sscanf(line, "VmRSS: %ld", &list[i].mem_kb);
                     break;
                 }
             }
@@ -101,7 +101,7 @@ void remplir_liste_processus(DIR *d, t_process *liste, int nb)
  * Parsing stops as soon as both values are found to avoid reading the entire
  * file.  Returns 1 on success, 0 if /proc/meminfo cannot be opened.
  */
-static int lire_ram(unsigned long *total, unsigned long *available)
+static int read_ram_info(unsigned long *total, unsigned long *available)
 {
     FILE *f = fopen("/proc/meminfo", "r");
     char  line[256];
@@ -128,7 +128,7 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
                      unsigned long *used, float *percent,
                      unsigned long *selfused)
 {
-    if (!lire_ram(total, avail)) {
+    if (!read_ram_info(total, avail)) {
         *total = *avail = *used = 0;
         *percent = 0.0f;
         return;
@@ -201,12 +201,12 @@ static int compare_by_name(const void *a, const void *b)
  * Public sort dispatcher
  * ========================================================================= */
 
-void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb)
+void switch_sort(t_sort_mode sort_mode, t_process *list, int nb)
 {
     switch (sort_mode) {
-        case SORT_PID:  qsort(liste, nb, sizeof(t_process), compare_by_pid);  break;
-        case SORT_NAME: qsort(liste, nb, sizeof(t_process), compare_by_name); break;
-        case SORT_MEM:  qsort(liste, nb, sizeof(t_process), compare_by_mem);  break;
+        case SORT_PID:  qsort(list, nb, sizeof(t_process), compare_by_pid);  break;
+        case SORT_NAME: qsort(list, nb, sizeof(t_process), compare_by_name); break;
+        case SORT_MEM:  qsort(list, nb, sizeof(t_process), compare_by_mem);  break;
         default:        break;
     }
 }

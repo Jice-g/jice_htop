@@ -3,7 +3,7 @@
  * @brief Shared data structure and collector thread interface.
  *
  * t_shared is the single point of truth exchanged between the background
- * collector thread (thread_collecte) and the main render loop.
+ * collector thread (thread_collector) and the main render loop.
  * All accesses to mutable fields must be guarded by the embedded mutex.
  */
 
@@ -21,15 +21,15 @@
  * it by taking a private snapshot under the mutex (see main.c).
  *
  * Ownership rules:
- *   - @c listProc is heap-allocated by the collector and freed by free_shared().
+ *   - @c proc_list is heap-allocated by the collector and freed by free_shared().
  *   - @c running is the only field written by the main thread; it signals the
  *     collector to exit cleanly.
  */
 typedef struct s_shared
 {
-    t_process       *listProc;      /**< Heap-allocated process array (capacity: @c capacite) */
-    int              nb;            /**< Number of valid entries in @c listProc               */
-    int              capacite;      /**< Allocated capacity of @c listProc, in entries        */
+    t_process       *proc_list;     /**< Heap-allocated process array (capacity: @c capacity) */
+    int              nb;            /**< Number of valid entries in @c proc_list               */
+    int              capacity;      /**< Allocated capacity of @c proc_list, in entries        */
     unsigned long    total_ram;     /**< Total installed RAM, in kB                    */
     unsigned long    avail_ram;     /**< Available RAM, in kB                          */
     unsigned long    ram_used;      /**< Used RAM (total - avail), in kB               */
@@ -73,7 +73,7 @@ void free_shared(t_shared *s);
  * Runs in a loop at COLLECT_INTERVAL-microsecond intervals:
  *   1. Checks s->running; exits if 0.
  *   2. Opens /proc and counts live processes.
- *   3. Acquires the mutex and updates s->listProc, s->nb, and RAM metrics.
+ *   3. Acquires the mutex and updates s->proc_list, s->nb, and RAM metrics.
  *   4. Releases the mutex and closes /proc.
  *
  * On realloc() failure the current cycle is skipped; the previous data
@@ -82,7 +82,7 @@ void free_shared(t_shared *s);
  * @param arg  Pointer to the t_shared instance (cast from void *).
  * @return     Always NULL (pthread convention for "terminated without error").
  */
-void *thread_collecte(void *arg);
+void *collector_thread(void *arg);
 
 
 #endif /* THREADSHARE_H */

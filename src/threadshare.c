@@ -4,7 +4,7 @@
  *
  * The collector thread runs independently of the render loop.  It owns the
  * write side of t_shared: it is the only thread that modifies listProc, nb,
- * capacite, and the RAM metrics.  The main thread reads those fields by
+ * capacity, and the RAM metrics.  The main thread reads those fields by
  * taking a snapshot under the mutex (see main.c).
  */
 
@@ -23,9 +23,9 @@
 
 void init_shared(t_shared *s)
 {
-    s->listProc    = NULL;
+    s->proc_list    = NULL;
     s->nb          = 0;
-    s->capacite    = 0;
+    s->capacity    = 0;
     s->total_ram   = 0;
     s->avail_ram   = 0;
     s->ram_used    = 0;
@@ -43,8 +43,8 @@ void init_shared(t_shared *s)
 
 void free_shared(t_shared *s)
 {
-    free(s->listProc);
-    s->listProc = NULL;
+    free(s->proc_list);
+    s->proc_list = NULL;
     pthread_mutex_destroy(&s->mutex);
 }
 
@@ -53,7 +53,7 @@ void free_shared(t_shared *s)
  * Collector thread
  * ========================================================================= */
 
-void *thread_collecte(void *arg)
+void *collector_thread(void *arg)
 {
     t_shared *s = (t_shared *)arg;
     DIR      *d;
@@ -78,23 +78,23 @@ void *thread_collecte(void *arg)
             continue;
         }
 
-        nb = compter_processus(d);
+        nb = count_processes(d);
 
         /* -----------------------------------------------------------------
          * Critical section — write shared data
          * ----------------------------------------------------------------- */
         pthread_mutex_lock(&s->mutex);
 
-        if (nb > s->capacite) {
+        if (nb > s->capacity) {
             /*
              * Grow with a headroom of 20 slots to reduce future reallocations
              * when the process count fluctuates near the current capacity.
              */
             new_capa = nb + 20;
-            t_process *tmp = realloc(s->listProc, new_capa * sizeof(t_process));
+            t_process *tmp = realloc(s->proc_list, new_capa * sizeof(t_process));
             if (tmp) {
-                s->listProc = tmp;
-                s->capacite = new_capa;
+                s->proc_list = tmp;
+                s->capacity = new_capa;
             } else {
                 /*
                  * realloc() failed: release the mutex and skip this cycle.
@@ -108,7 +108,7 @@ void *thread_collecte(void *arg)
             }
         }
 
-        remplir_liste_processus(d, s->listProc, nb);
+        fill_process_list(d, s->proc_list, nb);
         s->nb = nb;
         update_ram_info(&s->total_ram, &s->avail_ram,
                         &s->ram_used, &s->ram_percent, &s->self_use);

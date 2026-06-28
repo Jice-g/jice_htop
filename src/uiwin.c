@@ -64,7 +64,7 @@ void draw_header(void)
 }
 
 
-int bandeau_bas(char *dest, int sMax, t_sort_mode smode, const char *filter)
+int low_status_bar(char *dest, int sMax, t_sort_mode smode, const char *filter)
 {
     const char *sort_label =
         (smode == SORT_PID)  ? "PID" :
@@ -78,10 +78,10 @@ int bandeau_bas(char *dest, int sMax, t_sort_mode smode, const char *filter)
 }
 
 
-void calcul_scroll(int nb_affiches, int lignes_dispo, int *scroll_offset,
+void compute_scroll(int nb_visible, int avail_lines, int *scroll_offset,
                    int *max_scroll, int *bar_height, int *bar_pos)
 {
-    *max_scroll = nb_affiches - lignes_dispo;
+    *max_scroll = nb_visible - avail_lines;
     if (*max_scroll < 0) *max_scroll = 0;
 
     /* Clamp scroll_offset to the valid range [0, max_scroll]. */
@@ -92,7 +92,7 @@ void calcul_scroll(int nb_affiches, int lignes_dispo, int *scroll_offset,
      * bar_height equals the viewport height when the list overflows, or the
      * list length when it fits entirely — ensuring the thumb fills the track.
      */
-    *bar_height = (nb_affiches > lignes_dispo) ? lignes_dispo : nb_affiches;
+    *bar_height = (nb_visible > avail_lines) ? avail_lines : nb_visible;
 
     /*
      * Map scroll_offset linearly to a thumb position within [0, bar_height-1].
@@ -115,7 +115,7 @@ void draw_scrollbar(int bar_height, int bar_pos, int y0)
  * Filtering
  * ========================================================================= */
 
-int cmp_filtre(const char *strg, const char *sub)
+int match_filter(const char *strg, const char *sub)
 {
     /* An empty or NULL filter matches everything. */
     if (!strg || !sub || !sub[0])

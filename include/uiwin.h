@@ -83,7 +83,7 @@ void draw_header(void);
  * @param filter  Active filter string, or an empty string if none.
  * @return        Length of the formatted string (as returned by snprintf).
  */
-int bandeau_bas(char *dest, int sMax, t_sort_mode smode, const char *filter);
+int low_status_bar(char *dest, int sMax, t_sort_mode smode, const char *filter);
 
 /**
  * @brief Compute scrollbar geometry from the current list and viewport state.
@@ -91,14 +91,14 @@ int bandeau_bas(char *dest, int sMax, t_sort_mode smode, const char *filter);
  * Clamps @p scroll_offset to [0, max_scroll] and derives bar_height and
  * bar_pos so that the scrollbar reflects the visible portion of the list.
  *
- * @param nb_affiches    Total number of rows matching the active filter.
- * @param lignes_dispo   Number of rows available in the process panel.
+ * @param nb_visible    Total number of rows matching the active filter.
+ * @param avail_lines   Number of rows available in the process panel.
  * @param[in,out] scroll_offset  Current scroll offset; clamped in place.
  * @param[out]    max_scroll     Maximum reachable scroll offset.
  * @param[out]    bar_height     Height of the scrollbar track, in rows.
  * @param[out]    bar_pos        Position of the scrollbar thumb, in rows.
  */
-void calcul_scroll(int nb_affiches, int lignes_dispo, int *scroll_offset,
+void compute_scroll(int nb_visible, int avail_lines, int *scroll_offset,
                    int *max_scroll, int *bar_height, int *bar_pos);
 
 /**
@@ -124,7 +124,7 @@ void draw_scrollbar(int bar_height, int bar_pos, int y0);
  * @param sub   Substring to look for (user-supplied filter).
  * @return      1 if @p sub is found in @p strg, 0 otherwise.
  */
-int cmp_filtre(const char *strg, const char *sub);
+int match_filter(const char *strg, const char *sub);
 
 
 /* ---------------------------------------------------------------------------
