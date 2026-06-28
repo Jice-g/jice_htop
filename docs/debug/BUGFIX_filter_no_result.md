@@ -1,7 +1,18 @@
 # Rapport de correction — Gestion de l'interface lors d'un filtre sans résultat
 
 **Projet :** JICE-HTOP
-**Version concernée :** 2.0.1
+**Projet :** JICE-HTOP
+**Version concernée :** 2.1
+
+---
+
+## Référence
+
+- **Fichier corrigé :** `src/main.c`
+- **Bloc corrigée :** `Ligne 178       if (nb_displayed == 0) {`
+- **Sévérité :** Fonctionnelle (visible immédiatement par un utilisateur)
+
+---
 
 ---
 
