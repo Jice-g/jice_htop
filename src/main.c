@@ -184,13 +184,6 @@ int main(void)
             mvprintw(L_LIST_PROCESS, 1, "Aucun processus ne correspond au filtre.");
             attroff(COLOR_PAIR(3) | A_BOLD);
 
-            refresh();
-            key = getch();
-            if (get_keypressed(key, &sort_mode, &scroll_offset,
-                               filter, &shared.running, &shared.mutex))
-                break;
-
-            continue;
         }
 
         /* Compute scrollbar geometry, then render visible rows */

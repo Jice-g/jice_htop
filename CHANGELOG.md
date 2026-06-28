@@ -48,16 +48,30 @@ Les fonctionnalités de la version 1.x ont été intégralement conservées :
 
 ## [2.1.0] - 2026-06-28
 
-### Corrigé
+### Fixed
 
 **Correction de bug :**
 
+**Tri alphabétique**
 - Le tri alphabétique (SORT_NAME) affichait les threads noyau (ex. `[kthreadd]`)
   comme un groupe parasite intercalé entre les noms à majuscule et les noms en
   minuscule. Cause : `[` vaut ASCII 91, entre `Z` (90) et `a` (97). Corrigé par
   l'introduction de `skip_non_alpha()` et le remplacement de `strcmp()` par
   `strcasecmp()`qui prend en compte la casse.
   Voir `docs/bugfixes/BUGFIX_sort_nom.md`.
+
+**Filtre sans correspondance**  
+- Quand l'utilisateur tapait un filtre qui ne correspond à aucun processus
+  alors aucun processus ne s'affichait et à la place s'affichait un message :
+  "*Aucun processus ne correspond au filtre*" en haut de la liste. C'est correct.
+  C'est bien le comportement attendu.
+  Mais dans ce cas, le bandeau bas ne s'affichait pas et l'écho de la saisie se positionait à
+  la fin du dernier affichage, c'est-à-dire après "*Aucun processus ne correspond au filtre*" 
+  ce qui n'est pas conforme.
+  Correctif :
+  Dans le main, la branche nb_displayed == 0 (ligne 186) a son propre gestionnaire d'évènement :
+  refresh/getch/get_keypressed/continue), ce qui bypass l'affichage du bandeau bas.
+  Ce morceau de code erroné a été retiré. Ca fonctionne.
   
 ---
 
