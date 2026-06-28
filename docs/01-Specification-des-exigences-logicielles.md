@@ -32,9 +32,9 @@ Le projet JICE-HTOP est né dans le cadre de l'épreuve d'admission directe en t
 
 Au-delà de ce contexte initial, il évolue comme un projet personnel ayant plusieurs objectifs :
 
-- démontrer des compétences en développement système sous Linux ;
-- servir de support technique à destination des recruteurs lors d'une recherche d'alternance ;
-- approfondir la pratique de l'ingénierie logicielle, de la documentation technique et des méthodes de développement modernes.
+* démontrer des compétences en développement système sous Linux ;
+* servir de support technique à destination des recruteurs lors d'une recherche d'alternance ;
+* approfondir la pratique de l'ingénierie logicielle, de la documentation technique et des méthodes de développement modernes.
 
 ---
 
@@ -219,7 +219,7 @@ Le logiciel suppose :
 
 Les contraintes techniques détaillées (langage, bibliothèques, système d'exploitation, architecture, performances, dépendances, etc.) sont décrites dans le document :
 
-**02-System-Requirements-and-Constraints.md**
+**01-Specification-des-exigences-logicielles.md**
 
 ---
 
@@ -249,8 +249,8 @@ Elles pourront évoluer au fil des versions afin d'accompagner l'enrichissement 
 
 Les exigences définies dans ce document sont prises en compte dans :
 
-* **02-System-Requirements-and-Constraints.md** pour les contraintes techniques ;
-* **03-Software-Architecture.md** pour les choix de conception ;
-* **04-Evolution-and-Roadmap.md** pour les évolutions prévues.
+* **01-Specification-des-exigences-logicielles.md** pour les contraintes techniques ;
+* **02-Contraintes-techniques.md** pour les choix de conception ;
+* **03-Architecture.md** pour les évolutions prévues.
 
 Ce document constitue la référence fonctionnelle du projet.

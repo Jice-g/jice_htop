@@ -103,11 +103,8 @@ Le développement vise notamment :
 * la facilité d'évolution ;
 * la reproductibilité de la compilation.
 
-À terme, ces objectifs pourront être accompagnés par des outils de contrôle qualité tels que :
+À terme, ces objectifs pourront être accompagnés par des outils de contrôle qualité supplémentaires tels que :
 
-* Valgrind ;
-* AddressSanitizer ;
-* UndefinedBehaviorSanitizer ;
 * cppcheck ;
 * clang-tidy ;
 * GitHub Actions.
