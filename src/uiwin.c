@@ -1,3 +1,11 @@
+/**
+ * @file uiwin.c
+ * @brief ncurses initialisation, rendering helpers, and keyboard input.
+ *
+ * All rendering functions assume that init_ncurses() has been called first.
+ * Colour pair indices match those declared in uiwin.h.
+ */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -6,160 +14,181 @@
 #include "uiwin.h"
 
 
- 
+/* =========================================================================
+ * Initialisation
+ * ========================================================================= */
 
-// INITIALISATION DE NCURSES
-//
-void init_ncurses(void) {
-   
+void init_ncurses(void)
+{
     initscr();
     noecho();
-    curs_set(FALSE); 	    // pas de saisie au départ
-    keypad(stdscr, TRUE);   // active les touches spéciales (flèches, etc.) 
-    timeout(REFRESH_TIME);  // getch() attendra au plus REFRESH_TIME  millisecondes.    
-//  Colorisation :
-    start_color(); // Activation du système de couleur de ncurses.
-    init_pair(1, COLOR_BLACK, COLOR_WHITE); // bandeau haut    
-    init_pair(2, COLOR_WHITE, COLOR_BLACK); // titres
-    init_pair(3, COLOR_GREEN, COLOR_BLACK);// processus
-    init_pair(4, COLOR_CYAN, COLOR_BLACK); // menu contextuel   
-    init_pair(5, COLOR_BLACK, COLOR_YELLOW); // bandeau bas
+    curs_set(FALSE);            /* Hide the cursor during normal display.      */
+    keypad(stdscr, TRUE);       /* Enable special keys (arrows, function keys).*/
+    timeout(REFRESH_TIME);      /* getch() returns ERR after REFRESH_TIME ms.  */
 
+    start_color();
+    init_pair(1, COLOR_BLACK,  COLOR_WHITE);   /* Title banner                */
+    init_pair(2, COLOR_WHITE,  COLOR_BLACK);   /* Column headers              */
+    init_pair(3, COLOR_GREEN,  COLOR_BLACK);   /* Process rows                */
+    init_pair(4, COLOR_CYAN,   COLOR_BLACK);   /* Key-binding reminder        */
+    init_pair(5, COLOR_BLACK,  COLOR_YELLOW);  /* Dynamic status bar          */
 }
 
 
-// AFFICHAGE RAM
-//
-void ram_display(const unsigned long total, const unsigned long avail, const unsigned long used, const float percent, const unsigned long self_use) {    
-        
-        attron(COLOR_PAIR(3));  ; // Couleur verte sur fond noir            
-        mvprintw(L_DATA_GLOBAL + 0, 0, "%-16s %6lu MB", "Mem totale: ", total / 1024);
-        mvprintw(L_DATA_GLOBAL + 1, 0, "%-16s %6lu MB  %.1f%%      |    JICE_HTOP ressouces : %lu kB", "Mem utilisee : ", used / 1024, percent, self_use);    
-        mvprintw(L_DATA_GLOBAL + 2, 0, "%-16s %6lu MB", "Mem libre : ", avail / 1024);
-        attroff(COLOR_PAIR(3));  ; 
+/* =========================================================================
+ * Rendering
+ * ========================================================================= */
+
+void ram_display(const unsigned long total, const unsigned long avail,
+                 const unsigned long used, const float percent,
+                 const unsigned long self_use)
+{
+    attron(COLOR_PAIR(3));
+    mvprintw(L_DATA_GLOBAL + 0, 0, "%-16s %6lu MB",
+             "Mem totale:",   total / 1024);
+    mvprintw(L_DATA_GLOBAL + 1, 0, "%-16s %6lu MB  %.1f%%      |    JICE_HTOP ressources : %lu kB",
+             "Mem utilisee:", used  / 1024, percent, self_use);
+    mvprintw(L_DATA_GLOBAL + 2, 0, "%-16s %6lu MB",
+             "Mem libre:",    avail / 1024);
+    attroff(COLOR_PAIR(3));
 }
 
 
-// FONCTIONS UTILES POUR L'AFFICHAGE :
-//
-void draw_header(void) {     
-        attron(COLOR_PAIR(2) | A_BOLD); // Couleur noir sur fond bleu                            
-        mvprintw(L_TAB_PROCESS + 0, 0, "------------------------------------------------");
-        mvprintw(L_TAB_PROCESS + 1, 0, " %s     %s   %s", "PID", "MEM (kb)", "NOM");
-        mvprintw(L_TAB_PROCESS + 2, 0, "------------------------------------------------");
-        attroff(COLOR_PAIR(2) | A_BOLD);     
+void draw_header(void)
+{
+    attron(COLOR_PAIR(2) | A_BOLD);
+    mvprintw(L_TAB_PROCESS + 0, 0, "------------------------------------------------");
+    mvprintw(L_TAB_PROCESS + 1, 0, " %-5s  %9s   %s", "PID", "MEM (kB)", "NOM");
+    mvprintw(L_TAB_PROCESS + 2, 0, "------------------------------------------------");
+    attroff(COLOR_PAIR(2) | A_BOLD);
 }
 
 
-int bandeau_bas(char* dest, int sMax, t_sort_mode smode, const char* filter) {
-    // 1) Texte du mode de tri
-    const char* tri =
-        smode == SORT_PID  ? "PID" :
-        	smode == SORT_NAME ? "NOM" : "MEM";
-        	
-    // 2) Texte du filtre
-    const char* f = (filter && filter[0]) ? filter : ""; // filter ni NULL ni nul sinon rien
+int bandeau_bas(char *dest, int sMax, t_sort_mode smode, const char *filter)
+{
+    const char *sort_label =
+        (smode == SORT_PID)  ? "PID" :
+        (smode == SORT_NAME) ? "NOM" : "MEM";
 
-    // 3) Écriture sécurisée dans le buffer fourni
-    // sMax = taille max utilisable (COLS - 1)
-    snprintf(dest, sMax, "Tri: %s | Filtre: %s", tri, f);
-    
-    return strlen(dest);
+    /* Display an empty string when no filter is active. */
+    const char *f = (filter && filter[0]) ? filter : "";
+
+    snprintf(dest, sMax, "Tri: %s | Filtre: %s", sort_label, f);
+    return (int)strlen(dest);
 }
 
-// Calculer la hauteur du scroll-bar et la position du curseur
+
 void calcul_scroll(int nb_affiches, int lignes_dispo, int *scroll_offset,
-                    int *max_scroll, int *bar_height, int *bar_pos) {
-                    
+                   int *max_scroll, int *bar_height, int *bar_pos)
+{
     *max_scroll = nb_affiches - lignes_dispo;
     if (*max_scroll < 0) *max_scroll = 0;
 
-    if (*scroll_offset < 0) *scroll_offset = 0;
+    /* Clamp scroll_offset to the valid range [0, max_scroll]. */
+    if (*scroll_offset < 0)           *scroll_offset = 0;
     if (*scroll_offset > *max_scroll) *scroll_offset = *max_scroll;
 
+    /*
+     * bar_height equals the viewport height when the list overflows, or the
+     * list length when it fits entirely — ensuring the thumb fills the track.
+     */
     *bar_height = (nb_affiches > lignes_dispo) ? lignes_dispo : nb_affiches;
-    *bar_pos = (*max_scroll == 0) ? 0 : (*scroll_offset * (*bar_height - 1)) / *max_scroll;
+
+    /*
+     * Map scroll_offset linearly to a thumb position within [0, bar_height-1].
+     * Integer division is intentional; fractional precision is not needed here.
+     */
+    *bar_pos = (*max_scroll == 0)
+               ? 0
+               : (*scroll_offset * (*bar_height - 1)) / *max_scroll;
 }
 
 
-void draw_scrollbar(int bar_height, int bar_pos, int y0) {
-    for (int y = 0; y < bar_height; y++) {
+void draw_scrollbar(int bar_height, int bar_pos, int y0)
+{
+    for (int y = 0; y < bar_height; y++)
         mvprintw(y0 + y, COLS - 3, (y == bar_pos) ? "[=]" : "|||");
-    }
 }
 
-// Fonction de comparaison avec filtre, insensible à la casse
-int cmp_filtre(const char* strg, const char* sub)
+
+/* =========================================================================
+ * Filtering
+ * ========================================================================= */
+
+int cmp_filtre(const char *strg, const char *sub)
 {
+    /* An empty or NULL filter matches everything. */
     if (!strg || !sub || !sub[0])
-        return 1; // filtre vide = tout passe
-        // à présent sait qu'on a au moins un caractère dans la chaine
+        return 1;
 
-	    for (int i = 0; strg[i]; i++)
-	    { 
-	    
-		int j = 0;
-		while ( sub[j] && tolower((unsigned char)strg[i + j]) == tolower((unsigned char)sub[j])) {
-		   j++;   }
-		   		
-		if (sub[j] == '\0')
-		    return 1; // on a au moins une correspondance
-	        }
-	    
-	    return 0;
-}   
+    /*
+     * Slide a window of length strlen(sub) over strg, comparing
+     * character-by-character in a case-insensitive manner.
+     * Return 1 on the first matching position found.
+     */
+    for (int i = 0; strg[i]; i++) {
+        int j = 0;
+        while (sub[j] &&
+               tolower((unsigned char)strg[i + j]) ==
+               tolower((unsigned char)sub[j]))
+            j++;
+        if (sub[j] == '\0')
+            return 1;
+    }
 
-// get_keypressed : Gestion de la saisie utilisateur - cette séquence apparait deux fois dans le main
-// Elle est appelé hors zone critique Mutex - on pase l'adresses de running et pas le share et le mutex pour locker sa modification
-// Retourne 1 si on doit quitter, 0 sinon
-int get_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter, int *running, pthread_mutex_t *mutex)
+    return 0;
+}
+
+
+/* =========================================================================
+ * Input handling
+ * ========================================================================= */
+
+int get_keypressed(int key, t_sort_mode *mode, int *scroll_offset,
+                   char *filter, int *running, pthread_mutex_t *mutex)
 {
-    if (key == 'q' || key == 'Q')
-    {
+    if (key == 'q' || key == 'Q') {
+        /*
+         * Signal the collector thread to stop.  The write to *running is
+         * guarded by the mutex even though it is a single int assignment,
+         * to maintain formal correctness of the synchronisation contract.
+         */
         pthread_mutex_lock(mutex);
         *running = 0;
         pthread_mutex_unlock(mutex);
-        return 1;  // signal de sortie
+        return 1;
     }
+
     on_keypressed(key, mode, scroll_offset, filter);
     return 0;
-} 
-
-
-// FONCTION SELECTION IHM
-// Sur touche clavier :
-void on_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter) 
-{
-    if (key == 'p' || key == 'P') { 
-    	*mode = SORT_PID;
-    	*scroll_offset = 0; }
-    	
-    else if (key == 'n' || key == 'N') { 
-    	*mode = SORT_NAME;
-    	*scroll_offset = 0; }
-    	
-    else if (key == 'm' || key == 'M') { 
-    	*mode = SORT_MEM;
-    	*scroll_offset = 0; }
-    	
-    else if (key == KEY_UP)
-    	(*scroll_offset)--;
-    else if (key == KEY_DOWN)
-    	(*scroll_offset)++;
-    	
-    else if (key == '/') {       
-	timeout(-1);
-	echo();
-	curs_set(TRUE);
-	getnstr(filter, 255);
-	noecho();
-	curs_set(FALSE);
-	timeout(REFRESH_TIME);      
-      
-    }
 }
 
-/* FIN */      
- 
 
+void on_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter)
+{
+    switch (key) {
+        case 'p': case 'P': *mode = SORT_PID;  *scroll_offset = 0; break;
+        case 'n': case 'N': *mode = SORT_NAME; *scroll_offset = 0; break;
+        case 'm': case 'M': *mode = SORT_MEM;  *scroll_offset = 0; break;
 
+        case KEY_UP:   (*scroll_offset)--; break;
+        case KEY_DOWN: (*scroll_offset)++; break;
+
+        case '/':
+            /*
+             * Suspend the render timeout and enable echo so the user can
+             * type a filter string.  getnstr() blocks until Enter is pressed.
+             * An empty input clears the active filter.
+             */
+            timeout(-1);
+            echo();
+            curs_set(TRUE);
+            getnstr(filter, 255);
+            noecho();
+            curs_set(FALSE);
+            timeout(REFRESH_TIME);
+            break;
+
+        default: break;
+    }
+}

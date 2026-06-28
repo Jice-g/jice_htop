@@ -1,3 +1,12 @@
+/**
+ * @file sysproc.c
+ * @brief Implementation of /proc parsing and process list sorting.
+ *
+ * All functions declared in sysproc.h are implemented here.
+ * Static helpers (comparators, lire_ram, skip_non_alpha) are internal to
+ * this translation unit and not exposed in the public header.
+ */
+
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
@@ -6,208 +15,198 @@
 #include "sysproc.h"
 
 
+/* =========================================================================
+ * Process list — data acquisition
+ * ========================================================================= */
 
-// -----------------------------
-//     PROCESSUS
-// -----------------------------
-
-
-// FONCTION DE COMPTAGE :
-//
-int compter_processus(DIR *d) {
-
+int compter_processus(DIR *d)
+{
     int total = 0;
-    struct dirent *entree;
+    struct dirent *entry;
 
-    while ((entree = readdir(d)) != NULL) {
-        if (isdigit(entree->d_name[0])) {
+    while ((entry = readdir(d)) != NULL) {
+        if (isdigit(entry->d_name[0]))
             total++;
-        }
     }
-    rewinddir(d); // Revenir au début pour re-parcourir le dossier après
-    
-    return total;    
+    /* Rewind so the same handle can be passed to remplir_liste_processus(). */
+    rewinddir(d);
+    return total;
 }
 
 
-
-
-// FONCTIONS COMPARATEURS (TRI) :
-//
-// Ces fonctions sont conçues pour être "encapsulées" dans la fonction de la librairie standart qsort(),
-// conçue pour être universelle : elle peut trier n'importe quel type de données (entiers, structures, pointeurs, etc.).
-// Pour atteindre cette flexibilité, elle ne sait pas à l'avance ce qu'elle trie.
-// Elle utilise donc des pointeurs génériques : int (*compar)(const void *, const void *)
-// Nous ferons de même pour éviter toute erreur ou ambiguité --> on castera les constantes passées en argument.
-
-// Tri décroissant sur le numero pid :
-static int compare_by_pid(const void *a, const void *b) {
-	
-    int pa = ((t_process *)a)->pid;  // check risque de débordement dans les comparateurs
-    int pb = ((t_process *)b)->pid;  // ---
-    return (pa > pb) - (pa < pb);    // décroissant
-}
-
-// Tri décroissant sur la mémoire mem_kb :
-static int compare_by_mem(const void *a, const void *b) {
-
-    long ma = ((t_process *)a)->mem_kb;  // check risque de débordement dans les comparateurs
-    long mb = ((t_process *)b)->mem_kb;  // ...    
-    return (mb > ma) - (mb < ma); // décroissant
-
-}
-
-// Tri décroissant le nom du process name :
-static int compare_by_name(const void *a, const void *b) {
-    const t_process *pa = a;
-    const t_process *pb = b;
-    return strcmp(pa->name, pb->name);    // croissant
-}
-
-
-
-// FONCTION D'ENREGISTREMENT
-//
 void remplir_liste_processus(DIR *d, t_process *liste, int nb)
 {
-    struct dirent   *entree;
-    char            chemin[STRLG];
-    char            ligne[STRLG];
-    FILE            *f;
-    int             i;
+    struct dirent *entry;
+    char  path[STRLG];
+    char  line[STRLG];
+    FILE *f;
+    int   i = 0;
 
-    i = 0;
-    while ((entree = readdir(d)) != NULL && i < nb)
-    {
-        // si c'est pas un digit on laisse tomber et on passe au suivant
-        if (!isdigit(entree->d_name[0])) 
+    while ((entry = readdir(d)) != NULL && i < nb) {
+
+        if (!isdigit(entry->d_name[0]))
             continue;
 
-	// PID : conversion string -> entier (le nom du fichier c'est le PID)
-	liste[i].pid = atoi(entree->d_name);
+        /* PID — the directory name itself is the numeric PID. */
+        liste[i].pid = atoi(entry->d_name);
 
-	// NOM : lecture de /proc/[PID]/comm, fichier qui contient le nom du processus
-	snprintf(chemin, sizeof(chemin), "/proc/%s/comm", entree->d_name);
-	f = fopen(chemin, "r");
-	if (f)
-	{
-	  // une ligne avec le nom du processus
-	    if (fgets(liste[i].name, sizeof(liste[i].name), f))
-		liste[i].name[strcspn(liste[i].name, "\n")] = 0; // supprime "end-of-line" si nécessaire
-	    fclose(f);
-	}
+        /*
+         * Process name — /proc/[PID]/comm contains a single line with the
+         * executable name (up to 15 chars, kernel-truncated).  Strip the
+         * trailing newline left by fgets().
+         */
+        snprintf(path, sizeof(path), "/proc/%s/comm", entry->d_name);
+        liste[i].name[0] = '\0';
+        f = fopen(path, "r");
+        if (f) {
+            if (fgets(liste[i].name, sizeof(liste[i].name), f))
+                liste[i].name[strcspn(liste[i].name, "\n")] = '\0';
+            fclose(f);
+        }
 
-	// MEMOIRE : lecture de VmRSS dans /proc/[PID]/status
-	// --------------------------------------------------
-	// VmRSS peut être absent dans le fichier :
-	// - Les processus noyau (kernel) : Leur 'status' n'a pas de ligne VmRSS car pas de processus utilisateur.
-	// - Les processus "zombies" : mort mais pas encore "ramassé" par le parent. Il n'a plus de mémoire allouée.
-	// - Les processus pourraient parfois avoir terminé entre le moment où on lit la liste et le moment où on ouvre le 'status'.
+        /*
+         * Resident memory — VmRSS in /proc/[PID]/status, in kibibytes.
+         *
+         * VmRSS may be absent for:
+         *   - Kernel threads  : no user-space memory mapping.
+         *   - Zombie processes: memory already released, not yet reaped.
+         *   - Processes that exited between compter_processus() and here.
+         * In all those cases mem_kb stays at 0.
+         */
+        snprintf(path, sizeof(path), "/proc/%s/status", entry->d_name);
+        liste[i].mem_kb = 0;
+        f = fopen(path, "r");
+        if (f) {
+            while (fgets(line, sizeof(line), f)) {
+                if (strncmp(line, "VmRSS:", 6) == 0) {
+                    sscanf(line, "VmRSS: %ld", &liste[i].mem_kb);
+                    break;
+                }
+            }
+            fclose(f);
+        }
 
-	snprintf(chemin, sizeof(chemin), "/proc/%s/status", entree->d_name);
-	f = fopen(chemin, "r");
-	
-	liste[i].mem_kb = 0;  // ou initialise même si calloc() est sensé le faire
-	if (f)
-	{
-	    while (fgets(ligne, sizeof(ligne), f))
-	    { // Il y aura possiblement une ligne : "VmRSS: 15320 kB" par exemple 
-		if (strncmp(ligne, "VmRSS:", 6) == 0)
-		{
-		    sscanf(ligne, "VmRSS: %ld", &liste[i].mem_kb); // on identifie un %ld qui suit directement et on l'enregistre
-		    break;
-		}
-	    }
-	    fclose(f);
-	}
         i++;
     }
 }
 
 
+/* =========================================================================
+ * RAM metrics
+ * ========================================================================= */
 
-// -----------------------------
-//     RAM
-// -----------------------------
-
-// FONCTIONS POUR LIRE INFO RAM :
-///
-//  RAM globale  :  Lecture de "/proc/meminfo" :
-//  et puis, recherche et lecture des champs :
-// - "MemTotal : "
-// - "MemAvailable : "
-// on écrit cette valeur en 'string' dans 'ligne' avec sscanf()
-       
+/*
+ * Read MemTotal and MemAvailable from /proc/meminfo.
+ *
+ * Parsing stops as soon as both values are found to avoid reading the entire
+ * file.  Returns 1 on success, 0 if /proc/meminfo cannot be opened.
+ */
 static int lire_ram(unsigned long *total, unsigned long *available)
 {
     FILE *f = fopen("/proc/meminfo", "r");
-    char ligne[256];
+    char  line[256];
 
-    *total = 0;
+    *total     = 0;
     *available = 0;
 
     if (!f)
         return 0;
 
-    while (fgets(ligne, sizeof(ligne), f))
-    {      
-        if (sscanf(ligne, "MemTotal: %lu kB", total) == 1)
-            continue;
-        if (sscanf(ligne, "MemAvailable: %lu kB", available) == 1)
-            continue;
-            
+    while (fgets(line, sizeof(line), f)) {
+        if (sscanf(line, "MemTotal: %lu kB",     total)     == 1) continue;
+        if (sscanf(line, "MemAvailable: %lu kB", available) == 1) continue;
         if (*total != 0 && *available != 0)
-        break; // on va pas continuer de lire tout le fichier, ça sert à rien
+            break;
     }
 
-    fclose(f);    
+    fclose(f);
     return 1;
-} 
-
-
-
-// Mise à jour des données RAM : 
-///
-void update_ram_info(unsigned long *total, unsigned long *avail, unsigned long *used, float *percent, unsigned long *selfused)
-{
-    if (!lire_ram(total, avail)) {  // Si on a zero c'est qu'on a un probleme avec l'accès à /proc/meminfo
-        *total = *avail = 0;
-        *percent = 0;
-        return;
-    }
-    *used = *total - *avail;
-    *percent = (*total > 0) ? (float)(*used * 100) / *total : 0;
-    
-    struct rusage selfusage; // rusage : struct de <sys/resource.h> pour lire la consommation du programme
-    if (getrusage(RUSAGE_SELF, &selfusage) == 0) {
-        // ru_maxrss est en kilo-octets
-        *selfused = selfusage.ru_maxrss;
-        }
-    else *selfused = 0;
-        
 }
 
 
+void update_ram_info(unsigned long *total, unsigned long *avail,
+                     unsigned long *used, float *percent,
+                     unsigned long *selfused)
+{
+    if (!lire_ram(total, avail)) {
+        *total = *avail = *used = 0;
+        *percent = 0.0f;
+        return;
+    }
 
-// Mode tri des enregistrements :
-///
-void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb) {
-        
-	switch (sort_mode) {
-    		case SORT_PID:
-        		qsort(liste, nb, sizeof(t_process), compare_by_pid);
-        		break;
-    	case SORT_NAME:
-        		qsort(liste, nb, sizeof(t_process), compare_by_name);
-        		break;
-    	case SORT_MEM:
-        		qsort(liste, nb, sizeof(t_process), compare_by_mem);
-        		break;
-        default : break;
-        }
-}  
+    *used    = *total - *avail;
+    *percent = (*total > 0) ? (float)(*used * 100) / *total : 0.0f;
+
+    /*
+     * ru_maxrss (getrusage RUSAGE_SELF) reports the peak RSS of this process
+     * in kibibytes on Linux.  Used to display jice_htop's own footprint.
+     */
+    struct rusage self;
+    *selfused = (getrusage(RUSAGE_SELF, &self) == 0) ? self.ru_maxrss : 0;
+}
 
 
+/* =========================================================================
+ * Sort comparators (file-private)
+ * ========================================================================= */
+
+/*
+ * Branchless three-way comparison idiom: (a > b) - (a < b).
+ * Avoids signed-integer overflow that would occur with a direct subtraction
+ * when values span the full int/long range.
+ */
+
+static int compare_by_pid(const void *a, const void *b)
+{
+    int pa = ((const t_process *)a)->pid;
+    int pb = ((const t_process *)b)->pid;
+    return (pa > pb) - (pa < pb);   /* ascending */
+}
+
+static int compare_by_mem(const void *a, const void *b)
+{
+    long ma = ((const t_process *)a)->mem_kb;
+    long mb = ((const t_process *)b)->mem_kb;
+    return (mb > ma) - (mb < ma);   /* descending */
+}
+
+/*
+ * Return a pointer to the first alphabetic character in s.
+ *
+ * Linux kernel threads expose names bracketed with '[' (e.g. [kthreadd]).
+ * '[' is ASCII 91, which falls between 'Z' (90) and 'a' (97).  A raw
+ * strcmp() would sort them into a spurious group between upper- and
+ * lower-case names.  Skipping leading non-alpha characters makes
+ * [kthreadd] sort with the 'k' entries, [migration/0] with 'm', etc.
+ *
+ * Edge case: if the entire string is non-alphabetic, return s - 1 so that
+ * strcasecmp() still receives a valid, non-empty pointer.
+ */
+static const char *skip_non_alpha(const char *s)
+{
+    while (*s && !isalpha((unsigned char)*s))
+        s++;
+    return (*s) ? s : s - 1;
+}
+
+static int compare_by_name(const void *a, const void *b)
+{
+    const t_process *pa = a;
+    const t_process *pb = b;
+    return strcasecmp(skip_non_alpha(pa->name), skip_non_alpha(pb->name));
+}
 
 
-/* fin */
+/* =========================================================================
+ * Public sort dispatcher
+ * ========================================================================= */
+
+void switch_sort(t_sort_mode sort_mode, t_process *liste, int nb)
+{
+    switch (sort_mode) {
+        case SORT_PID:  qsort(liste, nb, sizeof(t_process), compare_by_pid);  break;
+        case SORT_NAME: qsort(liste, nb, sizeof(t_process), compare_by_name); break;
+        case SORT_MEM:  qsort(liste, nb, sizeof(t_process), compare_by_mem);  break;
+        default:        break;
+    }
+}
