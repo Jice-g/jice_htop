@@ -64,6 +64,8 @@ jice_htop/
 │
 ├── docs/
 │
+├── debug/
+│
 ├── test/
 │
 ├── assets/

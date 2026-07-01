@@ -99,7 +99,7 @@ Le logiciel doit afficher :
 
 * la mémoire physique utilisée ;
 * la mémoire disponible ;
-* la mémoire d'échange (swap).
+* - empreinte mémoire du processus jice_htop lui-même
 
 ---
 

@@ -2,17 +2,12 @@
 **Moniteur système Linux interactif développé en langage C avec ncurses.**
 
 
-JICE-HTOP est un projet personnel inspiré de *htop*, conçu pour approfondir le développement système sous Linux et démontrer une démarche professionnelle de conception logicielle.
-
-> **Objectif :** mettre en œuvre une architecture modulaire, un modèle concurrent basé sur POSIX Threads et une collecte des informations système via `/proc`.
-
----
-
-**Contexte**
+**Contexte du projet**
 
 Ce projet a été initié dans le cadre de mon admission directe en *3ᵉ année Bachelor IT – Développeur Logiciel & DevOps* à **La Plateforme** (Marseille).
+Il continue aujourd'hui d'évoluer comme projet personnel me permettant d'accompagner ma montée en compétence en développement système sous Linux et en qualité logicielle.
 
-Il est désormais développé comme un projet logiciel PERSONNEL documenté afin d'accompagner ma montée en compétence et ma recherche d'alternance en Développement Logiciel / DevOps.
+> **Objectif :** mettre en œuvre une architecture modulaire, un modèle concurrent basé sur POSIX Threads et une collecte des informations système via `/proc`.
 
 ---
 
@@ -43,9 +38,7 @@ Il est désormais développé comme un projet logiciel PERSONNEL documenté afin
 
 - interface texte avec **ncurses**
 - navigation clavier
-- affichage plein écran
 - scrollbar proportionnelle
-- interface réactive grâce au multithreading
 
 ---
 
@@ -65,11 +58,17 @@ Il est désormais développé comme un projet logiciel PERSONNEL documenté afin
 
 ## Architecture
 
-Le projet repose sur une séparation stricte des responsabilités :
-
+Le projet repose sur une séparation  des responsabilités :
 - acquisition des données système ;
 - synchronisation des données partagées ;
 - affichage de l'interface utilisateur.
+
+
+![Interface principale](assets/img/mermaid_Architect-jice_htop_macro.png)
+
+Le cœur de l'application repose sur un **contexte partagé (`t_shared`)** synchronisé par mutex entre un thread de collecte et le thread principal chargé de l'affichage.
+
+---
 
 ### Organisation du dépôt
 
@@ -78,6 +77,7 @@ jice_htop/
 ├── src/
 ├── include/
 ├── docs/
+├── debug/
 ├── test/
 ├── assets/
 ├── Makefile
@@ -85,50 +85,18 @@ jice_htop/
 └── README.md
 ```
 
-### Vue d'ensemble
-
-
-![Interface principale](assets/img/mermaid_Architect-jice_htop_macro.png)
-
-Le cœur de l'application repose sur un **contexte partagé (`t_shared`)** synchronisé par mutex entre un thread de collecte et le thread principal chargé de l'affichage.
-
-Cette architecture permet de maintenir une interface fluide tout en limitant les sections critiques.
-
----
 
 ## Choix de conception
 
 ### Accès direct à `/proc`
 
-Le projet choisit de parser directement les pseudo-fichiers du noyau Linux plutôt que d'utiliser une bibliothèque spécialisée.
+Le projet lit directement les pseudo-fichiers du système /proc plutôt que de s'appuyer sur une bibliothèque spécialisée.
+Ce choix facilite la compréhension des mécanismes internes de Linux et conserve une maîtrise complète du traitement des données.
 
-Ce choix permet :
-
-- une meilleure compréhension des mécanismes internes de Linux ;
-- une réduction des dépendances externes ;
-- une maîtrise complète du traitement des données.
-
-### Architecture multithread
-
-La collecte système est exécutée dans un thread dédié.
-
-Le thread principal reste exclusivement responsable de l'interface utilisateur.
-
-Les échanges sont réalisés via un contexte partagé protégé par mutex.
-
----
 
 ## Documentation
 
-Le dépôt est accompagné d'une documentation technique décrivant la démarche d'ingénierie du projet.
-
-- [01 - Exigences logicielles](docs/01-Exigences-logicielles.md)
-- [02 - Contraintes techniques](docs/02-Contraintes-techniques.md)
-- [03 - Architecture logicielle](docs/03-Architecture.md)
-- [04 - Feuille de route](docs/04-Feuille-de-route.md)
-
-Consulter le dossier **docs/**.
-
+Une documentation technique complémentaire et détaillée est disponible dans le dossier docs/.
 ---
 
 ## Compilation
@@ -190,18 +158,13 @@ Exécution :
 
 ## Qualité logicielle
 
-Le projet est développé dans une démarche de qualité logicielle visant à produire un code robuste, lisible et maintenable.
-
-Les vérifications réalisées incluent notamment :
+La qualité du code est vérifiée régulièrement à l'aide des outils suivants :
+À ce jour, les analyses ne mettent en évidence aucune fuite mémoire imputable au code applicatif (definitely lost: 0).
 
 - compilation sans avertissement (`-Wall -Wextra -Werror`)
 - analyse mémoire avec **Valgrind (Memcheck)**
 - vérification de l'exécution avec **AddressSanitizer (ASan)**
 - détection des comportements indéfinis avec **UndefinedBehaviorSanitizer (UBSan)**
-
-Les analyses réalisées n'ont mis en évidence **aucune fuite mémoire imputable au code applicatif** (`definitely lost : 0`).
-
-L'intégration d'outils complémentaires (analyse statique et intégration continue) est prévue dans de prochaines évolutions du projet.
 
 
 ## Auteur
