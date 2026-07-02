@@ -1,7 +1,7 @@
 # 03 - Architecture logicielle
 
 **Projet :** JICE-HTOP
-**Version :** 1.0 
+**Version :** 2.0 
 
 ---
 
