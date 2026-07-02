@@ -5,7 +5,7 @@
  * Spawns a background collector thread that periodically reads /proc and
  * updates shared system data.  The main thread runs the ncurses render loop:
  * it snapshots the shared data under a mutex, sorts and filters the process
- * list, renders the UI, then waits for a keyboard event before repeating.
+ * list, renders the UI.
  *
  * Architecture overview:
  *   - threadshare : shared data structure + collector thread lifecycle
@@ -60,14 +60,14 @@ int main(void)
      * process list to keep the critical section as short as possible.
      * Initial capacity is 256 entries; realloc() extends it on demand.
      */
-    t_process    *snap_list      = NULL;
-    int           snap_count         = 0;
-    int           snap_capacity   = 0;
-    unsigned long snap_total_ram  = 0;
-    unsigned long snap_avail_ram  = 0;
-    unsigned long snap_ram_used   = 0;
-    unsigned long snap_self_use   = 0;
-    float         snap_ram_percent = 0.0f;
+    t_process      *snap_list       = NULL;
+    int            snap_count       = 0;
+    int            snap_capacity    = 0;
+    unsigned long  snap_total_ram   = 0;
+    unsigned long  snap_avail_ram   = 0;
+    unsigned long  snap_ram_used    = 0;
+    unsigned long  snap_self_use    = 0;
+    float          snap_ram_percent = 0.0f;
 
     snap_list = calloc(256, sizeof(t_process));
     if (!snap_list) {
@@ -116,7 +116,7 @@ int main(void)
  
         pthread_mutex_lock(&shared.mutex);
 
-        snap_count          = shared.nb;
+        snap_count       = shared.nb;
         snap_total_ram   = shared.total_ram;
         snap_avail_ram   = shared.avail_ram;
         snap_ram_used    = shared.ram_used;
@@ -130,7 +130,7 @@ int main(void)
                 snap_list = tmp;
             } else {
                 pthread_mutex_unlock(&shared.mutex);
-                perror("realloc snap_list");
+                perror("realloc snap_list failed");
                 err_flag = 1;
                 break;
             }
