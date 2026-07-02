@@ -62,15 +62,26 @@ void *collector_thread(void *arg)
 
     while (1) {
 
-        /*
-         * Check the stop flag without acquiring the mutex.
-         * s->running is written exactly once by the main thread (set to 0
-         * when the user presses 'q').  On x86/x86-64 a single aligned int
-         * read is atomic at the hardware level, making this safe in practice.
-         * A portable solution would use atomic_int or a second mutex.
-         */
-        if (!s->running)
-            break;
+       /*
+	* Check the stop flag under the mutex.
+        *
+ 	* s->running is written exactly once by the main thread (set to 0
+ 	* when the user presses 'q', in uiwin.c get_keypressed()) and that
+ 	* write happens under s->mutex. Reading it here under the same
+ 	* mutex keeps both sides of the access symmetric, instead of relying
+ 	* on the hardware-level atomicity of a plain aligned int on x86.
+ 	*
+ 	* This critical section is intentionally tiny and constant in duration
+ 	* (a single int read) so it never competes meaningfully with the
+ 	* render thread's own lock usage.
+ 	*/
+         pthread_mutex_lock(&s->mutex);
+         int still_running = s->running;
+         pthread_mutex_unlock(&s->mutex);
+
+        if (!still_running)     
+    	   break;
+         
 
         d = opendir("/proc");
         if (!d) {

@@ -46,7 +46,7 @@ Les fonctionnalités de la version 1.x ont été intégralement conservées :
 
 ---
 
-## [2.1.0] - 2026-06-28
+## [2.1.0] - 28-06-2026
 
 ### Fixed
 
@@ -72,6 +72,24 @@ Les fonctionnalités de la version 1.x ont été intégralement conservées :
   Dans le main, la branche nb_displayed == 0 (ligne 186) a son propre gestionnaire d'évènement :
   refresh/getch/get_keypressed/continue), ce qui bypass l'affichage du bandeau bas.
   Ce morceau de code erroné a été retiré. Ca fonctionne.
+  
+  
+## [2.1.1] - 02-07-2026
+
+### Corrigé
+
+* Lecture non synchronisée de `s->running` par le thread collecteur : le champ était écrit sous mutex (dans `get_keypressed()`) mais lu sans lock dans la boucle de collecte. La lecture s'appuyait sur l'atomicité matérielle d'un `int` aligné sur x86, "safe en pratique" mais non garantie par la norme C.
+
+### Modifié
+
+* La vérification de `s->running` en tête de boucle du thread collecteur se fait désormais sous mutex, dans une section critique dédiée et bornée (une simple lecture), symétrique à l'écriture déjà protégée côté interface.
+
+         pthread_mutex_lock(&s->mutex);
+         int still_running = s->running;
+         pthread_mutex_unlock(&s->mutex);
+
+         if (!still_running)     
+          break;
   
 ---
 
