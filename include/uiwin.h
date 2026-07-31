@@ -1,16 +1,8 @@
 /**
  * @file uiwin.h
- * @brief ncurses UI — initialisation, rendering helpers, and input handling.
+ * @brief Interface ncurses — initialisation, aides d’affichage et gestion des entrées.
  *
- * Layout constants define a fixed row structure inside the terminal window:
- *
- *   Row 0                  : title banner (process count)
- *   Rows L_DATA_GLOBAL … +2: RAM metrics (3 rows)
- *   Rows L_TAB_PROCESS … +2: column header (3 rows)
- *   Rows L_LIST_PROCESS …  : scrollable process list
- *   Row LINES-2            : key-binding reminder
- *   Row LINES-1            : dynamic status bar (sort mode + active filter)
- */
+**/
 
 #ifndef UIWIN_H
 #define UIWIN_H
@@ -19,16 +11,32 @@
 #include <pthread.h>
 
 
-/** ncurses getch() timeout in milliseconds; controls the UI refresh rate. */
+/** Timeout de getch() en millisecondes ; contrôle la fréquence de rafraîchissement de l’UI. */
 #define REFRESH_TIME    200
 
-/** First row of the RAM metrics block (immediately below the title banner). */
+/*
+ * La "mise en page" est réalisée par la définition de bandeaux.
+ * Et des lignes dans ces bandeau affectées à des information particulière.
+ * Les constantes de mise en page définissent une structure fixe de lignes
+ * dans la fenêtre du terminal :
+ *
+ *   Ligne 0           		: bannière de titre, nombre de processus (1 ligne)
+ *   Lignes L_DATA_GLOBAL 	: métriques RAM (3 lignes)
+ *   Lignes L_TAB_PROCESS 	: en-tête des colonnes (3 lignes)
+ *   Lignes L_LIST_PROCESS 	: liste des processus défilante
+ *   Ligne LINES-2     		: rappel des raccourcis clavier
+ *   Ligne LINES-1        	: barre d’état dynamique (mode de tri + filtre actif)
+ *
+ * Leurs positions sont définies en relatif avec des #define :
+ */
+
+/** Première ligne du bloc des métriques RAM (juste sous la bannière de titre). */
 #define L_DATA_GLOBAL   1
 
-/** First row of the column header block (3 rows below L_DATA_GLOBAL). */
+/** Première ligne du bloc d’en-tête des colonnes (3 lignes sous L_DATA_GLOBAL). */
 #define L_TAB_PROCESS   (L_DATA_GLOBAL + 3)
 
-/** First row of the scrollable process list (3 rows below L_TAB_PROCESS). */
+/** Première ligne de la liste défilante des processus (3 lignes sous L_TAB_PROCESS). */
 #define L_LIST_PROCESS  (L_TAB_PROCESS + 3)
 
 
@@ -37,138 +45,142 @@
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Initialise ncurses and configure the five colour pairs used by the UI.
+ * @brief Initialise ncurses et configure les cinq paires de couleurs utilisées par l’UI.
  *
- * Colour pair index map:
- *   1 — black on white  (title banner)
- *   2 — white on black, bold (column headers)
- *   3 — green on black  (process rows)
- *   4 — cyan  on black  (key-binding reminder)
- *   5 — black on yellow (dynamic status bar)
+ * Correspondance des paires de couleurs :
+ *   1 — noir sur blanc  (bannière de titre)
+ *   2 — blanc sur noir, gras (en-têtes de colonnes)
+ *   3 — vert sur noir   (lignes de processus)
+ *   4 — cyan sur noir   (rappel des raccourcis)
+ *   5 — noir sur jaune  (barre d’état dynamique)
  */
 void init_ncurses(void);
 
 
 /* ---------------------------------------------------------------------------
- * Rendering
+ * Affichage
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Render the RAM metrics block at rows L_DATA_GLOBAL … +2.
+ * @brief Affiche le bloc des métriques RAM aux lignes L_DATA_GLOBAL … +2.
  *
- * @param total     Total installed RAM, in kB.
- * @param avail     Available RAM, in kB.
- * @param used      Used RAM, in kB.
- * @param percent   Used RAM as a percentage of total.
- * @param self_use  Peak RSS of this process, in kB.
+ * @param total     RAM totale installée, en kB.
+ * @param avail     RAM disponible, en kB.
+ * @param used      RAM utilisée, en kB.
+ * @param percent   Pourcentage de RAM utilisée.
+ * @param self_use  Pic de RSS de ce processus, en kB.
  */
 void ram_display(const unsigned long total, const unsigned long avail,
                  const unsigned long used, const float percent,
                  const unsigned long self_use);
 
 /**
- * @brief Render the column header block at rows L_TAB_PROCESS … +2.
+ * @brief Affiche le bloc d’en-tête des colonnes aux lignes L_TAB_PROCESS … +2.
  */
 void draw_header(void);
 
 /**
- * @brief Format the dynamic status bar string into @p dest.
+ * @brief Formate la chaîne de la barre d’état dynamique dans @p dest.
  *
- * Writes "Tri: <mode> | Filtre: <filter>" into @p dest, NUL-terminated and
- * truncated to @p sMax bytes.
+ * Écrit "Tri: <mode> | Filtre: <filter>" dans @p dest, terminé par NUL et
+ * tronqué à @p sMax octets.
  *
- * @param dest    Destination buffer.
- * @param sMax    Size of @p dest in bytes (typically COLS).
- * @param smode   Active sort mode.
- * @param filter  Active filter string, or an empty string if none.
- * @return        Length of the formatted string (as returned by snprintf).
+ * @param dest    Tampon de destination.
+ * @param sMax    Taille de @p dest en octets (souvent COLS) [pas de cas "spéciaux"]
+ * @param smode   Mode de tri actif.
+ * @param filter  Chaîne de filtre active, ou chaîne vide si aucun.
+ * @return        Longueur de la chaîne formatée (retour de snprintf).
  */
 int low_status_bar(char *dest, int sMax, t_sort_mode smode, const char *filter);
 
 /**
- * @brief Compute scrollbar geometry from the current list and viewport state.
+ * @brief Calcule la géométrie de la barre de défilement selon la liste et la zone visible.
  *
- * Clamps @p scroll_offset to [0, max_scroll] and derives bar_height and
- * bar_pos so that the scrollbar reflects the visible portion of the list.
+ * Force @p scroll_offset dans l’intervalle [0, max_scroll] et déduit bar_height
+ * et bar_pos pour que la barre reflète la portion visible de la liste.
  *
- * @param nb_visible    Total number of rows matching the active filter.
- * @param avail_lines   Number of rows available in the process panel.
- * @param[in,out] scroll_offset  Current scroll offset; clamped in place.
- * @param[out]    max_scroll     Maximum reachable scroll offset.
- * @param[out]    bar_height     Height of the scrollbar track, in rows.
- * @param[out]    bar_pos        Position of the scrollbar thumb, in rows.
+ * @param nb_visible    Nombre total de lignes correspondant au filtre actif.
+ * @param avail_lines   Nombre de lignes disponibles dans le panneau des processus.
+ * @param[in,out] scroll_offset  Décalage de défilement actuel ; ajusté si nécessaire.
+ * @param[out]    max_scroll     Décalage maximal atteignable.
+ * @param[out]    bar_height     Hauteur de la barre de défilement, en lignes.
+ * @param[out]    bar_pos        Position du curseur de défilement, en lignes.
  */
 void compute_scroll(int nb_visible, int avail_lines, int *scroll_offset,
                    int *max_scroll, int *bar_height, int *bar_pos);
 
 /**
- * @brief Render the scrollbar at the right edge of the process panel.
+ * @brief Affiche la barre de défilement sur le bord droit du panneau des processus.
  *
- * @param bar_height  Height of the scrollbar track, in rows.
- * @param bar_pos     Row index of the scrollbar thumb within the track.
- * @param y0          Absolute row of the first track cell (= L_LIST_PROCESS).
+ * @param bar_height  Hauteur de la barre de défilement, en lignes.
+ * @param bar_pos     Position du curseur dans la barre. Et définition du curseur avec '|||' et '[=]
+ * @param y0          Ligne absolue de la première cellule de la barre (= L_LIST_PROCESS).
  */
 void draw_scrollbar(int bar_height, int bar_pos, int y0);
 
 
 /* ---------------------------------------------------------------------------
- * Filtering
+ * Filtrage
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Test whether @p sub appears as a substring of @p strg.
+ * @brief Teste si @p sub apparaît comme sous-chaîne dans @p strg.
  *
- * The comparison is case-insensitive.  An empty @p sub always matches.
+ * La comparaison ignore la casse. Une chaîne @p sub vide correspond toujours.
  *
- * @param strg  String to search within (process name).
- * @param sub   Substring to look for (user-supplied filter).
- * @return      1 if @p sub is found in @p strg, 0 otherwise.
+ * @param strg  Chaîne dans laquelle chercher (nom du processus).
+ * @param sub   Sous-chaîne recherchée (filtre utilisateur).
+ * @return      1 si @p sub est trouvée dans @p strg, 0 sinon.
  */
 int match_filter(const char *strg, const char *sub);
 
 
 /* ---------------------------------------------------------------------------
- * Input handling
+ * Gestion des entrées
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Handle a keypress and signal exit when 'q' / 'Q' is pressed.
+ * @brief Gère une touche pressée et signale la sortie si 'q' / 'Q' est pressé.
  *
- * If the key is 'q' or 'Q', acquires @p mutex, sets *running to 0, releases
- * the mutex, and returns 1 to instruct the caller to break out of the render
- * loop.  For all other keys, delegates to on_keypressed() and returns 0.
+ * Si la touche est 'q' ou 'Q', verrouille @p mutex, met *running à 0,
+ * déverrouille le mutex, et retourne 1
+ * pour indiquer au code appelant qu’il doit quitter la boucle d’affichage (while 0).  
+ * Pour toutes les autres touches, délègue à on_keypressed() et retourne 0.
+ * on_keypressed n'est pas un "évènement" techniquement parlant, mais s'en rapproche.
  *
- * This function is intentionally called outside critical sections; only
- * @p running is touched under the mutex.
+ * Cette fonction est volontairement appelée hors des sections critiques ;
+ * seul @p running est modifié sous mutex. Il existe un risque de collision
+ * qui rendrait le comportement indéterminé.
  *
- * @param key           Key code returned by getch().
- * @param mode          Pointer to the active sort mode.
- * @param scroll_offset Pointer to the current scroll offset.
- * @param filter        Filter buffer (up to 255 chars + NUL).
- * @param running       Pointer to the shared running flag.
- * @param mutex         Mutex that guards @p running.
- * @return              1 if the render loop should exit, 0 otherwise.
+ * @param key           Code de la touche retourné par getch().
+ * @param mode          Pointeur vers le mode de tri actif.
+ * @param scroll_offset Pointeur vers le décalage de défilement.
+ * @param filter        Tampon de filtre (jusqu’à 255 caractères + NUL).
+ * @param running       Pointeur vers le drapeau partagé running.
+ * @param mutex         Mutex protégeant @p running.
+ * @return              1 si la boucle d’affichage doit se terminer, 0 sinon.
  */
 int get_keypressed(int key, t_sort_mode *mode, int *scroll_offset,
                    char *filter, int *running, pthread_mutex_t *mutex);
 
 /**
- * @brief Apply the effect of a non-exit keypress to the UI state.
+ * @brief Applique l’effet d’une touche (hors sortie) sur l’état de l’UI.
  *
- * Key bindings:
- *   'p' / 'P' : switch to SORT_PID  and reset scroll
- *   'n' / 'N' : switch to SORT_NAME and reset scroll
- *   'm' / 'M' : switch to SORT_MEM  and reset scroll
- *   KEY_UP    : scroll up one row
- *   KEY_DOWN  : scroll down one row
- *   '/'       : prompt for a filter string (blocks until Enter)
+ * Raccourcis :
+ *   'p' / 'P' : passer à SORT_PID  et réinitialiser le défilement
+ *   'n' / 'N' : passer à SORT_NAME et réinitialiser le défilement
+ *   'm' / 'M' : passer à SORT_MEM  et réinitialiser le défilement
+ *   KEY_UP    : défiler d’une ligne vers le haut
+ *   KEY_DOWN  : défiler d’une ligne vers le bas
+ *   '/'       : demander une chaîne de filtre (bloque jusqu’à Entrée)
  *
- * @param key           Key code returned by getch().
- * @param mode          Pointer to the active sort mode.
- * @param scroll_offset Pointer to the current scroll offset.
- * @param filter        Filter buffer (up to 255 chars + NUL).
+ * @param key           Code de la touche retourné par getch().
+ * @param mode          Pointeur vers le mode de tri actif.
+ * @param scroll_offset Pointeur vers le décalage de défilement.
+ * @param filter        Tampon de filtre (jusqu’à 255 caractères + NUL).
  */
 void on_keypressed(int key, t_sort_mode *mode, int *scroll_offset, char *filter);
 
 
 #endif /* UIWIN_H */
+

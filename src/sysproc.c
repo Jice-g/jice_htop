@@ -1,10 +1,10 @@
 /**
  * @file sysproc.c
- * @brief Implementation of /proc parsing and process list sorting.
+ * @brief Implémentation du parsing de /proc et du tri de la liste des processus.
  *
- * All functions declared in sysproc.h are implemented here.
- * Static helpers (comparators, lire_ram, skip_non_alpha) are internal to
- * this translation unit and not exposed in the public header.
+ * Toutes les fonctions déclarées dans sysproc.h sont implémentées ici.
+ * Les aides internes (comparateurs, lire_ram, skip_non_alpha) sont privées
+ * à cette unité de traduction et ne sont pas exposées dans le header public.
  */
 
 #include <stdio.h>
@@ -16,7 +16,7 @@
 
 
 /* =========================================================================
- * Process list — data acquisition
+ * Liste des processus — acquisition des données
  * ========================================================================= */
 
 int count_processes(DIR *d)
@@ -28,14 +28,38 @@ int count_processes(DIR *d)
         if (isdigit(entry->d_name[0]))
             total++;
     }
-    /* Rewind so the same handle can be passed to fill_process_list(). */
+    /* Remet le répertoire au début pour pouvoir passer le même handle à fill_process_list(). */
     rewinddir(d);
     return total;
 }
 
+/*
+ *  NOTA :
+ *  ------
+ *  Ici, on compte les processus puis on les lit. C’est correct, et surtout sûr :
+ *  on dimensionne le tableau avant de le remplir, ce qui évite tout dépassement.
+ *
+ *  On pourrait aussi compter les processus directement pendant la lecture,
+ *  afin d’éviter un éventuel décalage entre le moment du comptage et celui
+ *  de la lecture (processus très courts, zombies, forks rapides, etc.).
+ *
+ *  Cette optimisation réduirait le risque de mismatch entre nb et la liste
+ *  réellement parcourue, mais impliquerait une logique de remplissage plus
+ *  dynamique (realloc progressif ou liste chaînée temporaire).
+ *
+ *  Cet élément figurera dans la Roadmap.md
+ */
+
+
 
 void fill_process_list(DIR *d, t_process *list, int nb)
 {
+/*
+* La structure dirent fournit les informations élémentaires sur une entrée de répertoire 
+* lors de l’utilisation de fonctions comme readdir().
+* Essentiel à retenir : elle représente un fichier ou dossier rencontré dans un répertoire,
+* avec son nom, son inode, et parfois son type.
+*/
     struct dirent *entry;
     char  path[STRLG];
     char  line[STRLG];
@@ -47,17 +71,19 @@ void fill_process_list(DIR *d, t_process *list, int nb)
         if (!isdigit(entry->d_name[0]))
             continue;
 
-        /* PID — the directory name itself is the numeric PID. */
+        /* PID — le nom du répertoire est lui-même le PID numérique. */
         list[i].pid = atoi(entry->d_name);
 
         /*
-         * Process name — /proc/[PID]/comm contains a single line with the
-         * executable name (up to 15 chars, kernel-truncated).  Strip the
-         * trailing newline left by fgets().
+         * Nom du processus — /proc/[PID]/comm contient une seule ligne avec
+         * le nom de l’exécutable (jusqu’à 15 caractères, tronqué par le noyau).
+         * On enlève le retour à la ligne laissé par fgets() en le repérant avec strcspn().
          */
         snprintf(path, sizeof(path), "/proc/%s/comm", entry->d_name);
         list[i].name[0] = '\0';
+        
         f = fopen(path, "r");
+        
         if (f) {
             if (fgets(list[i].name, sizeof(list[i].name), f))
                 list[i].name[strcspn(list[i].name, "\n")] = '\0';
@@ -65,13 +91,13 @@ void fill_process_list(DIR *d, t_process *list, int nb)
         }
 
         /*
-         * Resident memory — VmRSS in /proc/[PID]/status, in kB.
+         * Mémoire résidente — VmRSS dans /proc/[PID]/status, en kB.
          *
-         * VmRSS may be absent for:
-         *   - Kernel threads  : no user-space memory mapping.
-         *   - Zombie processes: memory already released, not yet reaped.
-         *   - Processes that exited between count_processes() and here.
-         * In all those cases mem_kb stays at 0.
+         * VmRSS peut être absent pour :
+         *   - Threads noyau  : pas de mémoire en espace utilisateur.
+         *   - Processus zombies : mémoire déjà libérée, pas encore nettoyée.
+         *   - Processus qui ont quitté entre count_processes() et ici.
+         * Dans tous ces cas, mem_kb reste à 0.
          */
         snprintf(path, sizeof(path), "/proc/%s/status", entry->d_name);
         list[i].mem_kb = 0;
@@ -92,14 +118,15 @@ void fill_process_list(DIR *d, t_process *list, int nb)
 
 
 /* =========================================================================
- * RAM metrics
+ * Métriques RAM
  * ========================================================================= */
 
 /*
- * Read MemTotal and MemAvailable from /proc/meminfo.
+ * Lit MemTotal et MemAvailable depuis /proc/meminfo.
  *
- * Parsing stops as soon as both values are found to avoid reading the entire
- * file.  Returns 1 on success, 0 if /proc/meminfo cannot be opened.
+ * Le parsing s’arrête dès que les deux valeurs sont trouvées pour éviter
+ * de lire tout le fichier. Retourne 1 en cas de succès, 0 si /proc/meminfo
+ * ne peut pas être ouvert.
  */
 static int read_ram_info(unsigned long *total, unsigned long *available)
 {
@@ -138,8 +165,8 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
     *percent = (*total > 0) ? (float)(*used * 100) / *total : 0.0f;
 
     /*
-     * ru_maxrss (getrusage RUSAGE_SELF) reports the peak RSS of this process
-     * in kB on Linux.  Used to display jice_htop's own footprint.
+     * ru_maxrss (getrusage RUSAGE_SELF) indique le pic de RSS de ce processus
+     * en kB sous Linux. Utilisé pour afficher l’empreinte mémoire de jice_htop.
      */
     struct rusage self;
     *selfused = (getrusage(RUSAGE_SELF, &self) == 0) ? self.ru_maxrss : 0;
@@ -147,40 +174,44 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
 
 
 /* =========================================================================
- * Sort comparators (file-private)
+ * Comparateurs de tri (privés au fichier)
  * ========================================================================= */
 
 /*
- * Branchless three-way comparison idiom: (a > b) - (a < b).
- * Avoids signed-integer overflow that would occur with a direct subtraction
- * when values span the full int/long range.
+ * Idiome de comparaison à trois voies sans branche : (a > b) - (a < b).
+ * Évite les dépassements d’entiers signés qui pourraient arriver avec une
+ * soustraction directe lorsque les valeurs couvrent toute la plage int/long.
+ * Pour éviter les dépassements j'ai choisi  void* dans le prototype de la fonction
+ * et un typage const dans le corps.
  */
 
 static int compare_by_pid(const void *a, const void *b)
 {
     int pa = ((const t_process *)a)->pid;
     int pb = ((const t_process *)b)->pid;
-    return (pa > pb) - (pa < pb);   /* ascending */
+    return (pa > pb) - (pa < pb);   /* ordre croissant */
 }
 
 static int compare_by_mem(const void *a, const void *b)
 {
     long ma = ((const t_process *)a)->mem_kb;
     long mb = ((const t_process *)b)->mem_kb;
-    return (mb > ma) - (mb < ma);   /* descending */
+    return (mb > ma) - (mb < ma);   /* ordre décroissant */
 }
 
 /*
- * Return a pointer to the first alphabetic character in s.
+ * Retourne un pointeur vers le premier caractère alphabétique dans s.
  *
- * Linux kernel threads expose names bracketed with '[' (e.g. [kthreadd]).
- * '[' is ASCII 91, which falls between 'Z' (90) and 'a' (97).  A raw
- * strcmp() would sort them into a spurious group between upper- and
- * lower-case names.  Skipping leading non-alpha characters makes
- * [kthreadd] sort with the 'k' entries, [migration/0] with 'm', etc.
+ * Les threads noyau ont des noms entre crochets (ex. [kthreadd]).
+ * '[' est ASCII 91, entre 'Z' (90) et 'a' (97). Un strcmp brut les placerait
+ * dans un groupe artificiel entre majuscules et minuscules.
+ * Dans la première version, ils apparaissaient au-dessus des valeurs triés --> non-conformité.
+ * Ignorer les caractères non alphabétiques au début permet de trier
+ * [kthreadd] avec les entrées en 'k', [migration/0] avec celles en 'm', etc.
  *
- * Edge case: if the entire string is non-alphabetic, return s - 1 so that
- * strcasecmp() still receives a valid, non-empty pointer.
+ * Cas particulier : si toute la chaîne est non alphabétique, retourner s - 1
+ * pour que strcasecmp() reçoive quand même un pointeur valide et non vide.
+ * (Je n'ai jamais rencontré ce cas me semble-t-il.)
  */
 static const char *skip_non_alpha(const char *s)
 {
@@ -198,7 +229,7 @@ static int compare_by_name(const void *a, const void *b)
 
 
 /* =========================================================================
- * Public sort dispatcher
+ * Dispatcher de tri public
  * ========================================================================= */
 
 void switch_sort(t_sort_mode sort_mode, t_process *list, int nb)
@@ -210,3 +241,4 @@ void switch_sort(t_sort_mode sort_mode, t_process *list, int nb)
         default:        break;
     }
 }
+

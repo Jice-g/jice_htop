@@ -1,17 +1,43 @@
 /**
  * @file main.c
- * @brief Entry point of jice_htop — a lightweight interactive process monitor.
+ * @brief Point d’entrée de jice_htop — un moniteur de processus interactif léger.
  *
- * Spawns a background collector thread that periodically reads /proc and
- * updates shared system data.  The main thread runs the ncurses render loop:
- * it snapshots the shared data under a mutex, sorts and filters the process
- * list, renders the UI.
+ * Lance un thread collecteur en arrière‑plan qui lit périodiquement /proc
+ * et met à jour les données système partagées.  
+ * Le thread principal exécute la boucle d’affichage ncurses :
+ * il prend une copie des données partagées sous mutex, trie et filtre la liste
+ * des processus, puis affiche l’interface.
  *
- * Architecture overview:
- *   - threadshare : shared data structure + collector thread lifecycle
- *   - sysproc     : /proc parsing, RAM metrics, sort comparators
- *   - uiwin       : ncurses initialisation, rendering helpers, input handling
+ * Vue d’ensemble de l’architecture :
+ *   - threadshare : structure de données partagée + cycle de vie du thread collecteur
+ *   - sysproc     : parsing de /proc, métriques RAM, comparateurs de tri
+ *   - uiwin       : initialisation ncurses, fonctions d’affichage, gestion des entrées
+ *
+/*
+ *
+ *  NOTA :
+ * -------
+ *  Des améliorations sont encore possibles :
+ *
+ *  1°) Créer un second thread th_render plutôt que de gérer l'affichage directement dans main.
+ *      Ceci impliquerait que le thread d’affichage possède son propre cycle de rendu indépendant,
+ *      avec un accès synchronisé aux données partagées.
+ *      Le thread principal deviendrait alors un orchestrateur : initialisation, lancement des threads,
+ *      gestion du filtre et du mode de tri, puis arrêt propre de l’ensemble.
+ *      Cette séparation renforcerait la réactivité de l’UI et isolerait complètement la logique d’affichage
+ *      de la logique de supervision système.
+ *
+ *  2°)
+ *      a- Sortir les affichages de bannière et de bandeau pour les placer dans uiwin.h / uiwin.c,
+ *       et les faire gérer directement par th_render.
+ *
+ *      b- Le remplissage du buffer snap deviendrait la responsabilité de th_render,
+        ce qui permettrait de réduire encore la durée des sections critiques dans le thread collecteur.
+ *
+ *  Tous ces éléments figureront dans la Roadmap.md
+ *
  */
+
 
 #include <stdio.h>
 #include <dirent.h>
@@ -27,38 +53,48 @@
 
 int main(void)
 {
+
+
     /* -------------------------------------------------------------------------
-     * User interaction state
+     * État d’interaction utilisateur
      * ------------------------------------------------------------------------- */
+     
     int         key;
-    char        filter[256];    /* Substring filter typed by the user via '/'   */
+    char        filter[256];    // Filtre de sous-chaîne saisi par l’utilisateur via '/'
     filter[0]   = '\0';
     t_sort_mode sort_mode = SORT_PID;
     int         err_flag  = 0;
 
-    /* -------------------------------------------------------------------------
-     * UI layout and scroll state
-     * Each variable is reset at the top of every render iteration.
-     * ------------------------------------------------------------------------- */
-    char status_bar[512];       /* Formatted status bar string (bottom)          */
-    int  lines_written  = 0;    /* Rows actually rendered in the process panel   */
-    int  nb_displayed   = 0;    /* Rows matching the active filter               */
-    int  lines_avail    = 0;    /* Rows available between top and bottom banners */
-    int  bar_pos        = 0;    /* Scrollbar cursor position                     */
-    int  scroll_offset  = 0;    /* Index of the first visible process row        */
-    int  max_scroll     = 0;    /* Maximum reachable scroll offset               */
-    int  bar_height     = 0;    /* Scrollbar height in rows                      */
+
 
     /* -------------------------------------------------------------------------
-     * Shared data (collector thread <-> render loop)
+     * Mise en page de l’UI et état du défilement
+     * Chaque variable est réinitialisée au début de chaque itération d’affichage.
      * ------------------------------------------------------------------------- */
+     
+    char status_bar[512];       // Chaîne formatée de la barre d’état (bas de l’écran) 
+    int  lines_written  = 0;    // Lignes réellement affichées dans le panneau des processus 
+    int  nb_displayed   = 0;    // Lignes correspondant au filtre actif 
+    int  lines_avail    = 0;    // Lignes disponibles entre les bandeaux haut et bas 
+    int  bar_pos        = 0;    // Position du curseur de la barre de défilement 
+    int  scroll_offset  = 0;    // Index de la première ligne visible 
+    int  max_scroll     = 0;    // Décalage maximal atteignable 
+    int  bar_height     = 0;    // Hauteur de la barre de défilement 
+
+
+
+    /* -------------------------------------------------------------------------
+     * Données partagées (thread collecteur <-> boucle d’affichage)
+     * ------------------------------------------------------------------------- */
+     
     t_shared  shared;
-    pthread_t th_collecte;
+    pthread_t th_collector;
 
     /*
-     * Snapshot buffer — the render loop works on a private copy of the shared
-     * process list to keep the critical section as short as possible.
-     * Initial capacity is 256 entries; realloc() extends it on demand.
+     * Tampon de snapshot — la boucle d’affichage travaille sur une copie privée
+     * de la liste des processus pour garder la section critique aussi courte
+     * que possible.  
+     * La capacité initiale est de 256 entrées ; realloc() l’étend si nécessaire.
      */
     t_process      *snap_list       = NULL;
     int            snap_count       = 0;
@@ -78,12 +114,12 @@ int main(void)
 
 
     /* =========================================================================
-     * Initialization
+     * Initialisation
      * ========================================================================= */
 
     init_shared(&shared);
 
-    if (pthread_create(&th_collecte, NULL, collector_thread, &shared) != 0) {
+    if (pthread_create(&th_collector, NULL, collector_thread, &shared) != 0) {
         perror("pthread_create");
         free_shared(&shared);
         free(snap_list);
@@ -94,11 +130,11 @@ int main(void)
 
 
     /* =========================================================================
-     * Main render loop
+     * Boucle principale d’affichage
      * ========================================================================= */
 
     do {
-        /* Reset per-frame layout variables */
+        /* Réinitialisation des variables de mise en page pour cette frame */
         lines_written = 0;
         lines_avail   = 0;
         bar_pos       = 0;
@@ -107,11 +143,12 @@ int main(void)
 
 
         /* ---------------------------------------------------------------------
-         * Critical section — snapshot shared data
+         * Section critique — copie des données partagées
          *
-         * The lock is held only for the duration of the copy so the collector
-         * thread is not blocked during rendering.  realloc() is performed
-         * inside the lock because snap_list must match snap_count before memcpy.
+         * Le verrou est maintenu uniquement pendant la copie, afin que le
+         * thread collecteur ne soit pas bloqué pendant l’affichage.  
+         * realloc() est effectué sous verrou car snap_list doit correspondre
+         * à snap_count avant memcpy.
          * --------------------------------------------------------------------- */
  
         pthread_mutex_lock(&shared.mutex);
@@ -140,17 +177,17 @@ int main(void)
             memcpy(snap_list, shared.proc_list, snap_count * sizeof(t_process));
             
         pthread_mutex_unlock(&shared.mutex);
-        /* End of critical section */
+        /* Fin de la section critique */
 
 
         /* ---------------------------------------------------------------------
-         * Sort the snapshot according to the current user-selected mode
+         * Tri du snapshot selon le mode choisi par l’utilisateur
          * --------------------------------------------------------------------- */
         switch_sort(sort_mode, snap_list, snap_count);
 
 
         /* ---------------------------------------------------------------------
-         * Render — top banner
+         * Affichage — bannière supérieure
          * --------------------------------------------------------------------- */
         clear();
 
@@ -164,11 +201,11 @@ int main(void)
 
 
         /* ---------------------------------------------------------------------
-         * Render — process list with optional filter
+         * Affichage — liste des processus avec filtre optionnel
          * --------------------------------------------------------------------- */
         attron(COLOR_PAIR(3));
 
-        /* Count rows that pass the current filter before rendering */
+        /* Compter les lignes correspondant au filtre avant l’affichage */
         nb_displayed = 0;
         for (int k = 0; k < snap_count; k++) {
             if (filter[0] == '\0' || match_filter(snap_list[k].name, filter))
@@ -176,7 +213,7 @@ int main(void)
         }
 
         if (nb_displayed == 0) {
-            /* Clear the process panel and display a "no match" message */
+            /* Efface le panneau des processus et affiche un message */
             for (int y = 0; y < LINES - (L_LIST_PROCESS + 2); y++)
                 mvprintw(L_LIST_PROCESS + y, 1, "                                        ");
 
@@ -186,14 +223,14 @@ int main(void)
 
         }
 
-        /* Compute scrollbar geometry, then render visible rows */
+        /* Calcul de la barre de défilement, puis affichage des lignes visibles */
         lines_avail = LINES - (L_LIST_PROCESS + 2);
         compute_scroll(nb_displayed, lines_avail,
                       &scroll_offset, &max_scroll, &bar_height, &bar_pos);
         draw_scrollbar(bar_height, bar_pos, L_LIST_PROCESS);
 
-        int i = 0;   /* Index relative to the filtered list                */
-        int j = 0;   /* Absolute index into snap_list                     */
+        int i = 0;   /* Index relatif à la liste filtrée */
+        int j = 0;   /* Index absolu dans snap_list */
 
         while ((i + scroll_offset < snap_count) && (lines_written < lines_avail)) {
             j = i + scroll_offset;
@@ -215,9 +252,9 @@ int main(void)
 
 
         /* ---------------------------------------------------------------------
-         * Render — bottom banners
-         *   Line LINES-2 : static key-binding reminder
-         *   Line LINES-1 : dynamic status (active sort mode + filter)
+         * Affichage — bandeaux inférieurs
+         *   Ligne LINES-2 : rappel des raccourcis
+         *   Ligne LINES-1 : état dynamique (tri + filtre)
          * --------------------------------------------------------------------- */
         attron(COLOR_PAIR(4));
         mvprintw(LINES - 2, 0,
@@ -232,7 +269,7 @@ int main(void)
 
 
         /* ---------------------------------------------------------------------
-         * Input — flush display then wait up to REFRESH_TIME ms for a keypress
+         * Entrée — rafraîchit l’affichage puis attend une touche jusqu’à REFRESH_TIME ms
          * --------------------------------------------------------------------- */
         refresh();
 
@@ -245,16 +282,17 @@ int main(void)
 
 
     /* =========================================================================
-     * Teardown — order matters:
-     *   1. Join the collector thread (it checks shared.running to exit).
-     *   2. Release shared memory and mutex.
-     *   3. Free the snapshot buffer.
-     *   4. Restore the terminal via endwin().
+     * Nettoyage — l’ordre est important :
+     *   1. Joindre le thread collecteur (il vérifie shared.running pour sortir).
+     *   2. Libérer la mémoire partagée et le mutex.
+     *   3. Libérer le tampon de snapshot.
+     *   4. Restaurer le terminal via endwin().
      * ========================================================================= */
-    pthread_join(th_collecte, NULL);
+    pthread_join(th_collector, NULL);
     free_shared(&shared);
     free(snap_list);
     endwin();
 
     return err_flag;
 }
+

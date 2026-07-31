@@ -1,10 +1,11 @@
 /**
  * @file threadshare.h
- * @brief Shared data structure and collector thread interface.
+ * @brief Structure de données partagée et interface du thread collecteur.
  *
- * t_shared is the single point of truth exchanged between the background
- * collector thread (thread_collector) and the main render loop.
- * All accesses to mutable fields must be guarded by the embedded mutex.
+ * t_shared est la source unique de vérité échangée entre les threads
+ * collecteur en arrière‑plan (thread_collector) et la boucle principale d’affichage (dans main.c).  
+ * Tous les accès aux champs modifiables doivent être protégés par le mutex intégré.
+ * On utilisera un snap pour raccourcir la zone critique mutex au minimum.
  */
 
 #ifndef THREADSHARE_H
@@ -15,74 +16,77 @@
 
 
 /**
- * @brief Data shared between the collector thread and the render loop.
+ * @brief Données partagées entre le thread collecteur et la boucle d’affichage.
  *
- * The collector thread writes to this structure; the render loop reads from
- * it by taking a private snapshot under the mutex (see main.c).
+ * Le thread collecteur écrit dans cette structure,
+ * la boucle d’affichage la lit en prenant une copie privée sous protection du mutex (voir main.c).
  *
- * Ownership rules:
- *   - @c proc_list is heap-allocated by the collector and freed by free_shared().
- *   - @c running is the only field written by the main thread; it signals the
- *     collector to exit cleanly.
+ * Règles de propriété :
+ *   - @c proc_list est alloué (et le cas échéant réallouer) sur le tas par le collecteur et libéré par free_shared().
+ *   - @c running est le seul champ écrit par le thread principal,
+ *        il indique au collecteur quand terminer proprement (quand l'utilisateur décide de quitter le programme).
  */
 typedef struct s_shared
 {
-    t_process       *proc_list;     /**< Heap-allocated process array (capacity: @c capacity) */
-    int              nb;            /**< Number of valid entries in @c proc_list               */
-    int              capacity;      /**< Allocated capacity of @c proc_list, in entries        */
-    unsigned long    total_ram;     /**< Total installed RAM, in kB                    */
-    unsigned long    avail_ram;     /**< Available RAM, in kB                          */
-    unsigned long    ram_used;      /**< Used RAM (total - avail), in kB               */
-    float            ram_percent;   /**< Used RAM as a percentage of total                    */
-    unsigned long    self_use;      /**< Peak RSS of this process, in kB               */
-    int              running;       /**< Collector loop control: 1 = run, 0 = stop            */
-    pthread_mutex_t  mutex;         /**< Guards all fields above                              */
+    t_process       *proc_list;     /**< Tableau de processus alloué sur le tas (capacité : @c capacity) */
+    int              nb;            /**< Nombre d’entrées valides dans @c proc_list                      */
+    int              capacity;      /**< Capacité allouée de @c proc_list, en nombre d’entrées           */
+    unsigned long    total_ram;     /**< Quantité totale de RAM installée, en kB                         */
+    unsigned long    avail_ram;     /**< RAM disponible, en kB                                           */
+    unsigned long    ram_used;      /**< RAM utilisée (total - disponible), en kB                        */
+    float            ram_percent;   /**< Pourcentage de RAM utilisée                                     */
+    unsigned long    self_use;      /**< Pic de RSS de ce processus, en kB                               */
+    int              running;       /**< Contrôle du collecteur : 1 = actif, 0 = arrêt                   */
+    pthread_mutex_t  mutex;         /**< Protège tous les champs ci‑dessus                               */
 } t_shared;
 
 
 /* ---------------------------------------------------------------------------
- * Lifecycle
+ * Cycle de vie
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Initialise all fields of @p s to safe defaults and create the mutex.
+ * @brief Initialise tous les champs de @p s avec des valeurs sûres et crée le mutex.
  *
- * Must be called before spawning the collector thread.
+ * Doit être appelé avant de lancer le thread collecteur.
  *
- * @param s  Pointer to the t_shared instance to initialise.  Must not be NULL.
+ * @param s  Pointeur vers l’instance t_shared à initialiser. Ne doit pas être NULL.
  */
 void init_shared(t_shared *s);
 
+
 /**
- * @brief Release resources held by @p s (process array and mutex).
+ * @brief Libère les ressources détenues par @p s (tableau de processus et mutex).
  *
- * Must be called only after the collector thread has been joined.
+ * Ne doit être appelé qu’après la terminaison du thread collecteur.
  *
- * @param s  Pointer to the t_shared instance to destroy.  Must not be NULL.
+ * @param s  Pointeur vers l’instance t_shared à détruire. Ne doit pas être NULL.
  */
 void free_shared(t_shared *s);
 
 
 /* ---------------------------------------------------------------------------
- * Collector thread
+ * Thread collecteur
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Entry point of the background collector thread.
+ * @brief Point d’entrée du thread collecteur en arrière‑plan.
  *
- * Runs in a loop at COLLECT_INTERVAL-microsecond intervals:
- *   1. Checks s->running; exits if 0.
- *   2. Opens /proc and counts live processes.
- *   3. Acquires the mutex and updates s->proc_list, s->nb, and RAM metrics.
- *   4. Releases the mutex and closes /proc.
+ * Fonctionne en boucle à intervalles de COLLECT_INTERVAL microsecondes :
+ *   1. Vérifie s->running ; quitte si 0. Lecture sécurisée par mutex.
+ *   2. Ouvre /proc et compte les processus actifs en les lisant.
+ *   3. Prend le mutex et met à jour s->proc_list, s->nb et les métriques RAM.
+ *   4. Relâche le mutex et ferme /proc.
  *
- * On realloc() failure the current cycle is skipped; the previous data
- * remains visible to the render loop until the next successful cycle.
- *
- * @param arg  Pointer to the t_shared instance (cast from void *).
- * @return     Always NULL (pthread convention for "terminated without error").
+ * En cas d’échec de realloc(), le cycle courant est ignoré ;
+ * les données précédentes restent visibles pour la boucle d’affichage jusqu’au prochain cycle réussi.
+ * (on pourra voir comment sortir si l'échec se répète sans cesse - peu probable)
+ * @param arg  Pointeur vers l’instance t_shared (converti depuis void *).
+ * 
+ * @return     Toujours NULL (convention pthread pour « terminé sans erreur »).
  */
 void *collector_thread(void *arg);
 
 
 #endif /* THREADSHARE_H */
+

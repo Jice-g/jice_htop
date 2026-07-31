@@ -1,11 +1,12 @@
 /**
  * @file threadshare.c
- * @brief Lifecycle of t_shared and the background collector thread.
+ * @brief Cycle de vie de t_shared et du thread collecteur en arrière‑plan.
  *
- * The collector thread runs independently of the render loop.  It owns the
- * write side of t_shared: it is the only thread that modifies listProc, nb,
- * capacity, and the RAM metrics.  The main thread reads those fields by
- * taking a snapshot under the mutex (see main.c).
+ * Le thread collecteur fonctionne indépendamment de la boucle d’affichage.
+ * Il possède le côté écriture de t_shared 
+ * c’est le seul thread qui modifie listProc, nb, capacity et les métriques de RAM.  
+ * Le thread principal lit ces champs en prenant une copie protégée par le mutex
+ * (voir main.c).
  */
 
 #include <stdlib.h>
@@ -13,12 +14,12 @@
 #include "threadshare.h"
 #include "sysproc.h"
 
-/** Collector sleep duration between two /proc scans, in microseconds. */
+/** Durée de sommeil du collecteur entre deux scans de /proc, en microsecondes (= 200 miliseconde). */
 #define COLLECT_INTERVAL 200000
 
 
 /* =========================================================================
- * Lifecycle
+ * Cycle de vie
  * ========================================================================= */
 
 void init_shared(t_shared *s)
@@ -34,8 +35,8 @@ void init_shared(t_shared *s)
     s->running     = 1;
 
     /*
-     * pthread_mutex_init() must be called before any lock/unlock attempt.
-     * NULL attributes select the default (fast, non-recursive) mutex type.
+     * pthread_mutex_init() doit être appelé avant toute tentative de lock/unlock.
+     * Des attributs NULL sélectionnent le type de mutex par défaut (rapide, non récursif -> voir la documentation de la fonction pour comprendre).
      */
     pthread_mutex_init(&s->mutex, NULL);
 }
@@ -50,91 +51,98 @@ void free_shared(t_shared *s)
 
 
 /* =========================================================================
- * Collector thread
+ * Thread collecteur
  * ========================================================================= */
 
 void *collector_thread(void *arg)
 {
     t_shared *s = (t_shared *)arg;
-    DIR      *d;
-    int       nb;
-    int       new_capa;
+    DIR*  d;
+    int   nb;
+    int   new_capa;
 
     while (1) {
 
        /*
-	* Check the stop flag under the mutex.
+        * Vérifie le flag d’arrêt (running) sous protection du mutex.
         *
- 	* s->running is written exactly once by the main thread (set to 0
- 	* when the user presses 'q', in uiwin.c get_keypressed()) and that
- 	* write happens under s->mutex. Reading it here under the same
- 	* mutex keeps both sides of the access symmetric, instead of relying
- 	* on the hardware-level atomicity of a plain aligned int on x86.
- 	*
- 	* This critical section is intentionally tiny and constant in duration
- 	* (a single int read) so it never competes meaningfully with the
- 	* render thread's own lock usage.
- 	*/
-         pthread_mutex_lock(&s->mutex);
-         int still_running = s->running;
-         pthread_mutex_unlock(&s->mutex);
+        * s->running est écrit une seule fois par le thread principal (mis à 0
+        * quand l’utilisateur appuie sur 'q', dans uiwin.c get_keypressed()) et
+        * cette écriture se fait sous s->mutex. Le lire ici sous le même mutex
+        * garde les accès symétriques, au lieu de compter sur l’atomicité
+        * matérielle d’un int aligné sur x86.
+        *
+        * Cette section critique est volontairement minuscule et de durée fixe
+        * (une seule lecture d’int), donc elle ne concurrence jamais réellement
+        * l’utilisation du mutex par le thread d’affichage.
+        */
+        pthread_mutex_lock(&s->mutex);
+        int still_running = s->running;
+        pthread_mutex_unlock(&s->mutex);
 
-        if (!still_running)     
-    	   break;
-         
+        if (!still_running)
+            break;
 
         d = opendir("/proc");
+
         if (!d) {
             usleep(COLLECT_INTERVAL);
             continue;
         }
 
         nb = count_processes(d);
+        // Roadmap : il y a ici un comptage qui s'effectue avant le scan.
+        // il est possible de compter en enregistrant : c'est une amélioration future à implémenter
+        // Car il peut y avoir une latence entre le comptage et l'enregistrement.
 
         /* -----------------------------------------------------------------
-         * Critical section — write shared data
+         * Section critique — écriture des données partagées
          * ----------------------------------------------------------------- */
         pthread_mutex_lock(&s->mutex);
 
         if (nb > s->capacity) {
             /*
-             * Grow with a headroom of 20 slots to reduce future reallocations
-             * when the process count fluctuates near the current capacity.
+             * Augmenter la capacité avec une marge de 20 entrées pour réduire
+             * les futures reallocations lorsque le nombre de processus varie
+             * autour de la capacité actuelle.
              */
             new_capa = nb + 20;
             t_process *tmp = realloc(s->proc_list, new_capa * sizeof(t_process));
+            
             if (tmp) {
                 s->proc_list = tmp;
                 s->capacity = new_capa;
             } else {
                 /*
-                 * realloc() failed: release the mutex and skip this cycle.
-                 * The render loop keeps displaying the previous list until
-                 * the next successful collection.
+                 * realloc() a échoué : relâcher le mutex et ignorer ce cycle.
+                 * La boucle d’affichage continue de montrer l’ancienne liste
+                 * jusqu’au prochain cycle réussi.
+                 * N.B : Echecs répétés peu probables, mais penser à le gérer
                  */
                 pthread_mutex_unlock(&s->mutex);
                 closedir(d);
                 usleep(COLLECT_INTERVAL);
-                continue;
+                continue;  // on recommence du début
             }
         }
 
         fill_process_list(d, s->proc_list, nb);
         s->nb = nb;
-        update_ram_info(&s->total_ram, &s->avail_ram,
-                        &s->ram_used, &s->ram_percent, &s->self_use);
+        update_ram_info(&s->total_ram, &s->avail_ram, &s->ram_used, &s->ram_percent, &s->self_use);
 
         pthread_mutex_unlock(&s->mutex);
-        /* End of critical section */
+        /* Fin de la section critique */
 
         /*
-         * closedir() does not touch shared data, so it runs outside the
-         * critical section to minimise lock hold time.
+         * closedir() ne touche pas aux données partagées, donc il est exécuté
+         * en dehors de la section critique pour réduire au minimum le temps
+         * pendant lequel le mutex est verrouillé.
          */
         closedir(d);
         usleep(COLLECT_INTERVAL);
     }
 
-    /* pthread convention: return NULL to signal clean termination. */
+    /* Convention pthread : retourner NULL pour signaler une fin propre. */
     return NULL;
 }
+

@@ -1,9 +1,10 @@
 /**
  * @file sysproc.h
- * @brief Process and memory data structures, /proc parsing interface.
+ * @brief Structures de données pour les processus et la mémoire, interface de parsing de /proc.
  *
- * Public API for reading process information and RAM metrics from the Linux
- * /proc virtual filesystem, and for sorting the resulting process list.
+ * Lit les informations de processus et les métriques de RAM
+ * depuis le système de fichiers virtuel /proc de Linux, et pour trier la liste
+ * de processus obtenue.
  */
 
 #ifndef SYSPROC_H
@@ -13,78 +14,81 @@
 #include <sys/resource.h>
 
 
-/** Maximum length of a line buffer used when parsing /proc entries. */
+/** Longueur maximale d’un tampon de ligne utilisé lors du parsing des entrées /proc. */
 #define STRLG 512
 
 
 /**
- * @brief Snapshot of a single process at one point in time.
+ * @brief Instantané d’un processus à un moment donné.
  *
- * Populated by fill_process_list() from /proc/[PID]/comm
- * and /proc/[PID]/status (VmRSS field).
+ * Rempli par fill_process_list() à partir de /proc/[PID]/comm
+ * et /proc/[PID]/status (champ VmRSS).
  */
 typedef struct s_process
 {
-    int     pid;        /**< Numeric process identifier                      */
-    char    name[256];  /**< Process name read from /proc/[PID]/comm         */
-    long    mem_kb;     /**< Resident set size in kB (VmRSS), or 0
-                             if unavailable (kernel thread, zombie, etc.)    */
+    int     pid;        /**< Identifiant numérique du processus                       */
+    char    name[256];  /**< Nom du processus lu depuis /proc/[PID]/comm              */
+    long    mem_kb;     /**< Taille RSS en kB (VmRSS), ou 0 si non disponible (thread noyau, zombie, etc.) */
 }   t_process;
 
 
 /**
- * @brief Sort criterion for the process list.
+ * @brief Critère de tri pour la liste des processus.
  *
- * The active mode is toggled at runtime by the user (keys p / n / m)
- * and passed to switch_sort().
+ * Le mode actif est changé à l’exécution par l’utilisateur :
+ * touches p / n / m ou en P / N / M, ce n'est pas case-sensitive
+ * et transmis à switch_sort(). Voir la fonction de uiwin : On_keyPressed()
  */
 typedef enum e_sort_mode {
-    SORT_PID,   /**< Sort by PID, ascending                                  */
-    SORT_NAME,  /**< Sort by process name, case-insensitive, ascending       */
-    SORT_MEM    /**< Sort by resident memory usage, descending               */
+    SORT_PID,   /**< Tri par PID, ordre croissant                                 */
+    SORT_NAME,  /**< Tri par nom de processus, insensible à la casse, croissant   */
+    SORT_MEM    /**< Tri par mémoire résidente, ordre décroissant                 */
 } t_sort_mode;
 
 
 /* ---------------------------------------------------------------------------
- * Process list — data acquisition
+ * Liste des processus — acquisition des données
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Count the number of numeric entries in an open /proc directory.
+ * @brief Compte le nombre d’entrées numériques dans un répertoire /proc ouvert.
  *
- * Each numeric entry corresponds to one running process.
- * The directory is rewound to its start before returning so that the same
- * DIR handle can be passed immediately to fill_process_list().
+ * Chaque entrée numérique correspond à un processus en cours d’exécution.
+ * Le pointeur sur répertoire (handle) DIR* d est "remis au début" avant le retour de fonction (rewind(d)),
+ * afin que le même * handle DIR puisse être passé directement et sans décalage à fill_process_list().
  *
- * @param d  Open DIR handle for /proc.  Must not be NULL.
- * @return   Number of process entries found.
+ * @param d  Handle DIR ouvert pour /proc. Ne doit pas être NULL.
+ * @return   Nombre d’entrées de processus trouvées.
  */
 int count_processes(DIR *d);
 
+
 /**
- * @brief Populate a process array from an open /proc directory.
+ * @brief Remplit un tableau de processus à partir d’un répertoire /proc ouvert.
  *
- * Iterates over numeric entries in @p d and fills up to @p nb slots in
- * @p list with PID, name, and resident memory (VmRSS).  Entries whose
- * /proc/[PID]/comm or /proc/[PID]/status files disappear mid-scan (e.g.
- * short-lived processes) are silently skipped.
+ * Parcourt les entrées numérique (isdigit) dans @p d
+ * et remplit jusqu’à @p nb cases dans @p list avec le PID, le nom et la mémoire résidente (VmRSS).
  *
- * @param d      Open DIR handle for /proc.
- * @param list  Destination array; must hold at least @p nb elements.
- * @param nb     Maximum number of entries to write.
+ * Les entrées dont les fichiers /proc/[PID]/comm ou /proc/[PID]/status
+ * disparaissent pendant le scan (processus très courts) sont ignorées silencieusement.
+ *
+ * @param d      Handle DIR ouvert pour /proc.
+ * @param list   Tableau de destination ; doit contenir au moins @p nb éléments.
+ * @param nb     Nombre maximal d’entrées à écrire.
  */
 void fill_process_list(DIR *d, t_process *list, int nb);
 
+
 /**
- * @brief Refresh RAM usage metrics from /proc/meminfo and getrusage().
+ * @brief Met à jour les métriques d’utilisation de la RAM depuis /proc/meminfo et getrusage().
  *
- * All output pointers are mandatory; none may be NULL.
+ * Tous les pointeurs de sortie sont obligatoires ; aucun ne peut être NULL.
  *
- * @param[out] total     Total installed RAM, in kB.
- * @param[out] avail     Available RAM (MemAvailable), in kB.
- * @param[out] used      Used RAM computed as (total - avail), in kB.
- * @param[out] percent   Used RAM as a percentage of total (0.0 if total == 0).
- * @param[out] selfused  Peak resident set size of this process, in kB.
+ * @param[out] total     RAM totale installée, en kB.
+ * @param[out] avail     RAM disponible (MemAvailable), en kB.
+ * @param[out] used      RAM utilisée calculée comme (total - avail), en kB.
+ * @param[out] percent   Pourcentage de RAM utilisée (0.0 si total == 0).
+ * @param[out] selfused  Pic de RSS de ce processus, en kB.
  */
 void update_ram_info(unsigned long *total, unsigned long *avail,
                      unsigned long *used, float *percent,
@@ -92,22 +96,23 @@ void update_ram_info(unsigned long *total, unsigned long *avail,
 
 
 /* ---------------------------------------------------------------------------
- * Process list — sorting
+ * Liste des processus — tri
  * ------------------------------------------------------------------------- */
 
 /**
- * @brief Sort @p list in-place according to @p sort_mode.
+ * @brief Trie @p list en place selon @p sort_mode.
  *
- * Delegates to qsort() with the appropriate comparator:
- *   - SORT_PID  : ascending by PID
- *   - SORT_NAME : case-insensitive ascending, leading non-alpha chars ignored
- *   - SORT_MEM  : descending by resident memory
+ * Utilise qsort() avec le comparateur approprié :
+ *   - SORT_PID  : tri croissant par PID
+ *   - SORT_NAME : tri croissant insensible à la casse, caractères non alphabétiques ignorés
+ *   - SORT_MEM  : tri décroissant par mémoire résidente
  *
- * @param sort_mode  Requested sort criterion.
- * @param list      Array to sort; may be NULL if @p nb is 0.
- * @param nb         Number of elements in @p list.
+ * @param sort_mode  Critère de tri demandé.
+ * @param list       Tableau à trier ; peut être NULL si @p nb vaut 0.
+ * @param nb         Nombre d’éléments dans @p list.
  */
 void switch_sort(t_sort_mode sort_mode, t_process *list, int nb);
 
 
 #endif /* SYSPROC_H */
+
