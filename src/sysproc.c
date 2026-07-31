@@ -47,7 +47,7 @@ int count_processes(DIR *d)
  *  réellement parcourue, mais impliquerait une logique de remplissage plus
  *  dynamique (realloc progressif ou liste chaînée temporaire).
  *
- *  Cet élément figurera dans la Roadmap.md
+ *  Cet élément figure dans la feuille de route du projet (docs/)
  */
 
 

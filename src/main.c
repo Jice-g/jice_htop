@@ -34,8 +34,7 @@
  *      b- Le remplissage du buffer snap deviendrait la responsabilité de th_render,
         ce qui permettrait de réduire encore la durée des sections critiques dans le thread collecteur.
  *
- *  Tous ces éléments figureront dans la Roadmap.md
- *
+ *  Ces deux éléments figurent dans la Feuille de route du projet (docs/)
  */
 
 
